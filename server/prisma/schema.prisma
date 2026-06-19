@@ -1,0 +1,181 @@
+// TaskFlow Prisma schema.
+//
+// Dev uses SQLite (zero-config). To move to PostgreSQL in production, change
+// the datasource `provider` below to "postgresql" and point DATABASE_URL at
+// your Postgres instance. The schema deliberately avoids SQLite-only and
+// Postgres-only features (e.g. native enums) so it stays portable: enum-like
+// fields are stored as String and validated in application code against the
+// shared `WorkspaceRole` union in @taskflow/shared.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite" // change to "postgresql" for production
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownedWorkspaces  Workspace[]       @relation("WorkspaceOwner")
+  memberships      WorkspaceMember[]
+  assignedCards    Card[]            @relation("CardAssignee")
+  comments         Comment[]
+  activities       Activity[]
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  ownerId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner   User              @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  members WorkspaceMember[]
+  boards  Board[]
+  labels  Label[]
+
+  @@index([ownerId])
+}
+
+model WorkspaceMember {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  // One of the WorkspaceRole values: "OWNER" | "ADMIN" | "MEMBER".
+  role        String   @default("MEMBER")
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+model Board {
+  id          String   @id @default(cuid())
+  workspaceId String
+  title       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace  Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  columns    Column[]
+  activities Activity[]
+
+  @@index([workspaceId])
+}
+
+model Column {
+  id        String   @id @default(cuid())
+  boardId   String
+  title     String
+  // Fractional ordering index within the board (ascending). Inserting or
+  // moving a column only ever writes this one row: the new value is the
+  // midpoint of its neighbors' positions, so siblings never need shifting.
+  position  Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards Card[]
+
+  @@index([boardId, position])
+}
+
+model Card {
+  id          String    @id @default(cuid())
+  columnId    String
+  title       String
+  description String?
+  // Fractional ordering index within the column (ascending). See Column.position.
+  position    Float
+  assigneeId  String?
+  // One of the CardPriority values: "LOW" | "MEDIUM" | "HIGH" | "URGENT".
+  priority    String    @default("MEDIUM")
+  dueDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  column   Column      @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  assignee User?       @relation("CardAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  comments Comment[]
+  labels   CardLabel[]
+
+  @@index([columnId, position])
+  @@index([assigneeId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  cardId    String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  card   Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([cardId, createdAt])
+}
+
+model Label {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  // One of the LabelColor values (see @taskflow/shared); a curated palette so
+  // the UI can render chips with static Tailwind classes.
+  color       String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  cards     CardLabel[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+}
+
+// Join table for the Card <-> Label many-to-many relation.
+model CardLabel {
+  cardId    String
+  labelId   String
+  createdAt DateTime @default(now())
+
+  card  Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, labelId])
+  @@index([labelId])
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  boardId   String
+  actorId   String
+  // One of the ActivityType values (see @taskflow/shared), e.g. "card_created".
+  type      String
+  // JSON-encoded ActivityMetadata (see @taskflow/shared); SQLite has no native
+  // Json column type, so the app layer serializes/parses this String.
+  // Denormalized details captured at the time of the action (titles, names),
+  // so the feed reads correctly even after the referenced entity changes or
+  // is deleted.
+  metadata  String
+  createdAt DateTime @default(now())
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  actor User  @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([boardId, createdAt])
+}

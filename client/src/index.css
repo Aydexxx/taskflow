@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Default app surface, so the page background tracks the active theme before
+     any component styles apply (avoids a flash on first paint). */
+  html {
+    @apply bg-slate-100 text-slate-900;
+  }
+
+  html.dark {
+    @apply bg-slate-950 text-slate-100;
+    color-scheme: dark;
+  }
+}
+
+/* Respect users who prefer reduced motion: drop the entrance animations and
+   transitions rather than forcing them. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

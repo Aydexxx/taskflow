@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Typecheck, lint & test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Install every workspace (shared, server, client) from the lockfile.
+      - name: Install dependencies
+        run: npm ci
+
+      # Generate the Prisma client — it lives in node_modules (not committed),
+      # so typecheck and the server tests need it generated first.
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+
+      # server and client resolve @taskflow/shared from its compiled dist/, so
+      # the shared package must be built before they can typecheck or run.
+      - name: Build shared package
+        run: npm run build:shared
+
+      - name: Typecheck (shared + server + client)
+        run: npm run typecheck
+
+      - name: Lint (shared + server + client)
+        run: npm run lint
+
+      # Server tests spin up an isolated SQLite test.db (pushed in a vitest
+      # global setup) and an in-process Socket.IO server; client tests run in
+      # jsdom. No external services are required.
+      - name: Test (server + client)
+        run: npm run test

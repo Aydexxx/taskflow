@@ -1,0 +1,32 @@
+{
+  "name": "taskflow",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TaskFlow - real-time Kanban project management app (full-stack TypeScript monorepo)",
+  "license": "MIT",
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
+  "devDependencies": {
+    "@eslint/js": "^9.9.0",
+    "eslint": "^9.9.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "globals": "^15.9.0",
+    "typescript-eslint": "^8.2.0"
+  },
+  "scripts": {
+    "build:shared": "npm run build -w @taskflow/shared",
+    "build": "npm run build -w @taskflow/shared && npm run build -w @taskflow/server && npm run build -w @taskflow/client",
+    "dev:server": "npm run dev -w @taskflow/server",
+    "dev:client": "npm run dev -w @taskflow/client",
+    "prisma:migrate": "npm run prisma:migrate -w @taskflow/server",
+    "prisma:generate": "npm run prisma:generate -w @taskflow/server",
+    "prisma:studio": "npm run prisma:studio -w @taskflow/server",
+    "seed": "npm run seed -w @taskflow/server",
+    "typecheck": "npm run typecheck -w @taskflow/shared && npm run typecheck -w @taskflow/server && npm run typecheck -w @taskflow/client",
+    "lint": "npm run lint -w @taskflow/shared && npm run lint -w @taskflow/server && npm run lint -w @taskflow/client",
+    "test": "npm run test -w @taskflow/server && npm run test -w @taskflow/client"
+  }
+}
