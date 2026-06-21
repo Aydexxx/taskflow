@@ -12,7 +12,7 @@ function makeMember(overrides: Partial<WorkspaceMemberWithUser> & { userId: stri
     userId: overrides.userId,
     role: 'MEMBER',
     createdAt: '',
-    user: { id: overrides.userId, email: `${overrides.userId}@example.com`, name: overrides.name, avatarUrl: null, createdAt: '', updatedAt: '' },
+    user: { id: overrides.userId, email: `${overrides.userId}@example.com`, name: overrides.name, avatarUrl: null, title: null, bio: null, socialLinks: {}, createdAt: '', updatedAt: '' },
   };
 }
 

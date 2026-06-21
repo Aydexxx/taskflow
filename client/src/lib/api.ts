@@ -5,6 +5,7 @@ import type {
   AttachLabelRequest,
   AuthResponse,
   Board,
+  BoardAnalytics,
   BoardWithChildren,
   Card,
   Column,
@@ -15,18 +16,25 @@ import type {
   CreateCommentRequest,
   CreateLabelRequest,
   CreateWorkspaceRequest,
+  DraftDescriptionRequest,
+  DraftDescriptionResponse,
   HealthResponse,
   Label,
   LoginRequest,
   MoveCardRequest,
   NotificationWithActor,
   RegisterRequest,
+  SuggestMetadataResponse,
+  SuggestSubtasksResponse,
+  SummarizeBoardResponse,
   TransferOwnershipRequest,
   UpdateBoardRequest,
   UpdateCardRequest,
   UpdateColumnRequest,
+  UpdateProfileRequest,
   UpdateWorkspaceMemberRoleRequest,
   UpdateWorkspaceRequest,
+  UploadAvatarRequest,
   User,
   Workspace,
   WorkspaceMemberWithUser,
@@ -92,6 +100,14 @@ export const api = {
     request<AuthResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify(input) }),
 
   me: (): Promise<User> => request<User>('/api/auth/me'),
+
+  users: {
+    updateProfile: (input: UpdateProfileRequest): Promise<User> =>
+      request<User>('/api/users/me', { method: 'PATCH', body: JSON.stringify(input) }),
+
+    uploadAvatar: (input: UploadAvatarRequest): Promise<User> =>
+      request<User>('/api/users/me/avatar', { method: 'POST', body: JSON.stringify(input) }),
+  },
 
   workspaces: {
     list: (): Promise<Workspace[]> => request<Workspace[]>('/api/workspaces'),
@@ -176,6 +192,9 @@ export const api = {
 
     listActivity: (boardId: string): Promise<ActivityWithActor[]> =>
       request<ActivityWithActor[]>(`/api/boards/${boardId}/activity`),
+
+    analytics: (boardId: string, weeks?: number): Promise<BoardAnalytics> =>
+      request<BoardAnalytics>(`/api/boards/${boardId}/analytics${weeks ? `?weeks=${weeks}` : ''}`),
   },
 
   columns: {
@@ -234,5 +253,25 @@ export const api = {
       request<NotificationWithActor>(`/api/notifications/${notificationId}/read`, { method: 'PATCH' }),
 
     markAllRead: (): Promise<void> => request<void>('/api/notifications/read-all', { method: 'POST' }),
+  },
+
+  // AI assist. These endpoints only exist when the server has a provider
+  // configured; the client gates them behind `health().ai.enabled` so they are
+  // never called (and never shown) when AI is off.
+  ai: {
+    summarizeBoard: (boardId: string): Promise<SummarizeBoardResponse> =>
+      request<SummarizeBoardResponse>(`/api/ai/boards/${boardId}/summary`, { method: 'POST' }),
+
+    draftDescription: (workspaceId: string, input: DraftDescriptionRequest): Promise<DraftDescriptionResponse> =>
+      request<DraftDescriptionResponse>(`/api/ai/workspaces/${workspaceId}/draft-description`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+
+    suggestSubtasks: (cardId: string): Promise<SuggestSubtasksResponse> =>
+      request<SuggestSubtasksResponse>(`/api/ai/cards/${cardId}/subtasks`, { method: 'POST' }),
+
+    suggestMetadata: (cardId: string): Promise<SuggestMetadataResponse> =>
+      request<SuggestMetadataResponse>(`/api/ai/cards/${cardId}/suggestions`, { method: 'POST' }),
   },
 };

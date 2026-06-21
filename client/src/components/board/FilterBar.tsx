@@ -51,10 +51,10 @@ function FilterMenu({ label, activeCount, children }: { label: string; activeCou
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
         aria-haspopup="true"
-        className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+        className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-soft transition duration-150 ease-out-soft active:scale-[0.98] ${
           activeCount > 0
             ? 'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-500/50 dark:bg-indigo-500/10 dark:text-indigo-300'
-            : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+            : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700'
         }`}
       >
         {label}
@@ -68,7 +68,7 @@ function FilterMenu({ label, activeCount, children }: { label: string; activeCou
         )}
       </button>
       {open && (
-        <div className="absolute left-0 z-20 mt-2 w-56 rounded-lg border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-800">
+        <div className="absolute left-0 z-20 mt-2 w-56 origin-top rounded-xl border border-slate-200 bg-white p-1.5 shadow-overlay ring-1 ring-slate-900/5 animate-slide-in-down dark:border-slate-700 dark:bg-slate-800 dark:ring-white/10">
           {children}
         </div>
       )}
@@ -230,7 +230,7 @@ export function FilterBar({
             }
           >
             <span className="flex items-center gap-2">
-              <Avatar name={member.user.name} />
+              <Avatar name={member.user.name} avatarUrl={member.user.avatarUrl} />
               {member.user.name}
             </span>
           </CheckboxRow>

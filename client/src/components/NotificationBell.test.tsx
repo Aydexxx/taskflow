@@ -42,7 +42,7 @@ function makeNotification(overrides: Partial<NotificationWithActor> = {}): Notif
     metadata: { cardId: 'card-1', cardTitle: 'Card 1' },
     isRead: false,
     createdAt: new Date().toISOString(),
-    actor: { id: 'user-2', email: 'bob@example.com', name: 'Bob', avatarUrl: null, createdAt: '', updatedAt: '' },
+    actor: { id: 'user-2', email: 'bob@example.com', name: 'Bob', avatarUrl: null, title: null, bio: null, socialLinks: {}, createdAt: '', updatedAt: '' },
     ...overrides,
   };
 }

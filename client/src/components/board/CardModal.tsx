@@ -21,6 +21,7 @@ import { PRIORITY_LABELS } from '../../lib/board/priority';
 import { applyMention, findMentionQuery, matchMembers, type MentionQuery } from '../../lib/board/mentionAutocomplete';
 import { MentionSuggestions } from './MentionSuggestions';
 import { CommentBody } from './CommentBody';
+import { CardAiAssist } from './CardAiAssist';
 
 export interface CardFormValues {
   title: string;
@@ -46,8 +47,8 @@ function toDateInputValue(isoDate: string | null): string {
   return isoDate ? isoDate.slice(0, 10) : '';
 }
 
-const SECTION_CLASS = 'mt-6 border-t border-slate-200 pt-4 dark:border-slate-700';
-const SECTION_TITLE_CLASS = 'text-sm font-semibold text-slate-700 dark:text-slate-200';
+const SECTION_CLASS = 'mt-6 border-t border-slate-200 pt-4 dark:border-slate-700/80';
+const SECTION_TITLE_CLASS = 'text-sm font-semibold tracking-tight text-slate-700 dark:text-slate-200';
 
 export function CardModal({
   card,
@@ -139,9 +140,11 @@ export function CardModal({
     }
   }
 
+  // Derived so the effect can depend on the id alone (re-subscribe only when the
+  // open card changes), without the exhaustive-deps lint flagging `card`.
+  const cardId = card?.id;
   useEffect(() => {
-    if (!card) return undefined;
-    const cardId = card.id;
+    if (!cardId) return undefined;
     setComments([]);
     setCommentsLoading(true);
     api.cards
@@ -168,7 +171,7 @@ export function CardModal({
       socket.off(SOCKET_EVENTS.COMMENT_CREATED, onCommentCreated);
       socket.off(SOCKET_EVENTS.COMMENT_DELETED, onCommentDeleted);
     };
-  }, [card?.id]);
+  }, [cardId]);
 
   async function handleSubmit(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -284,7 +287,7 @@ export function CardModal({
 
   return (
     <Modal ariaLabel={card ? 'Edit card' : 'Create card'} onClose={onClose} className="max-w-2xl">
-      <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-50">{card ? 'Edit card' : 'New card'}</h2>
+      <h2 className="mb-4 text-h3 text-slate-900 dark:text-slate-50">{card ? 'Edit card' : 'New card'}</h2>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div>
           <FieldLabel htmlFor="card-title">Title</FieldLabel>
@@ -378,6 +381,18 @@ export function CardModal({
         </div>
       </form>
 
+      <CardAiAssist
+        workspaceId={workspaceId}
+        card={card}
+        title={title}
+        description={description}
+        workspaceLabels={workspaceLabels}
+        onDescriptionChange={setDescription}
+        onPriorityChange={setPriority}
+        onCardUpdated={onCardUpdated}
+        onWorkspaceLabelsChange={setWorkspaceLabels}
+      />
+
       {card && (
         <div className={SECTION_CLASS}>
           <h3 className={SECTION_TITLE_CLASS}>Labels</h3>
@@ -385,7 +400,7 @@ export function CardModal({
             {card.labels.map((label) => (
               <span
                 key={label.id}
-                className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${labelChipClass(label.color)}`}
+                className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${labelChipClass(label.color)}`}
               >
                 {label.name}
                 <button
@@ -407,7 +422,7 @@ export function CardModal({
                   if (event.target.value) void handleAddLabel(event.target.value);
                 }}
                 aria-label="Add an existing label"
-                className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                className="rounded-md border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-600 transition hover:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
               >
                 <option value="">+ Add label</option>
                 {unattachedLabels.map((label) => (
@@ -420,7 +435,7 @@ export function CardModal({
             <button
               type="button"
               onClick={() => setIsCreatingLabel((current) => !current)}
-              className="rounded border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-500 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-400 dark:hover:bg-slate-800"
+              className="rounded-md border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-500 transition hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-600 dark:text-slate-400 dark:hover:border-indigo-500/50 dark:hover:text-indigo-300"
             >
               + New label
             </button>
@@ -434,7 +449,7 @@ export function CardModal({
                 onChange={(event) => setNewLabelName(event.target.value)}
                 placeholder="Label name"
                 aria-label="New label name"
-                className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-900 transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/25 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/25"
               />
               <div className="flex gap-1">
                 {LABEL_COLORS.map((color) => (
@@ -474,7 +489,7 @@ export function CardModal({
             )}
             {comments.map((comment) => (
               <div key={comment.id} className="flex items-start gap-2">
-                <Avatar name={comment.author.name} />
+                <Avatar name={comment.author.name} avatarUrl={comment.author.avatarUrl} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2">
                     <span className="text-xs font-medium text-slate-700 dark:text-slate-200">

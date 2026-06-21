@@ -29,7 +29,7 @@ export function Modal({ ariaLabel, onClose, children, className }: ModalProps): 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 animate-fade-in dark:bg-black/60"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 animate-fade-in backdrop-blur-sm dark:bg-slate-950/70"
       onClick={onClose}
     >
       <div
@@ -38,7 +38,7 @@ export function Modal({ ariaLabel, onClose, children, className }: ModalProps): 
         aria-label={ariaLabel}
         onClick={(event) => event.stopPropagation()}
         className={cn(
-          'flex max-h-[85vh] w-full flex-col overflow-y-auto rounded-xl bg-white p-6 shadow-xl animate-scale-in dark:bg-slate-900 dark:ring-1 dark:ring-slate-700',
+          'scrollbar-subtle flex max-h-[85vh] w-full flex-col overflow-y-auto rounded-2xl bg-white p-6 shadow-overlay ring-1 ring-slate-900/5 animate-scale-in dark:bg-slate-900 dark:ring-white/10',
           className,
         )}
       >

@@ -36,13 +36,13 @@ export function NotificationBell(): JSX.Element {
         aria-expanded={open}
         aria-haspopup="true"
         aria-label="Notifications"
-        className="relative flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+        className="relative flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition duration-150 ease-out-soft hover:bg-slate-100 hover:text-slate-700 active:scale-95 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
       >
         <BellIcon className="h-5 w-5" />
         {unreadCount > 0 && (
           <span
             aria-hidden="true"
-            className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white"
+            className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white shadow-sm ring-2 ring-white dark:ring-slate-900"
           >
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
@@ -50,9 +50,9 @@ export function NotificationBell(): JSX.Element {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-20 mt-2 w-80 rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
-          <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2 dark:border-slate-700">
-            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Notifications</span>
+        <div className="absolute right-0 z-20 mt-2 w-80 origin-top-right overflow-hidden rounded-xl border border-slate-200 bg-white shadow-overlay ring-1 ring-slate-900/5 animate-slide-in-down dark:border-slate-700 dark:bg-slate-800 dark:ring-white/10">
+          <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2.5 dark:border-slate-700/80">
+            <span className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">Notifications</span>
             <button
               type="button"
               onClick={() => void markAllRead()}
@@ -73,11 +73,11 @@ export function NotificationBell(): JSX.Element {
                 <button
                   type="button"
                   onClick={() => handleSelect(notification)}
-                  className={`flex w-full items-start gap-2 px-3 py-2.5 text-left text-sm hover:bg-slate-50 dark:hover:bg-slate-700/60 ${
+                  className={`flex w-full items-start gap-2 px-3 py-2.5 text-left text-sm transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/60 ${
                     notification.isRead ? '' : 'bg-indigo-50/60 dark:bg-indigo-500/10'
                   }`}
                 >
-                  <Avatar name={notification.actor.name} />
+                  <Avatar name={notification.actor.name} avatarUrl={notification.actor.avatarUrl} />
                   <span className="min-w-0 flex-1">
                     <span className="block text-slate-700 dark:text-slate-200">
                       {describeNotification(notification)}

@@ -33,3 +33,16 @@ export class ValidationError extends HttpError {
     super(400, message, 'VALIDATION_ERROR');
   }
 }
+
+export class TooManyRequestsError extends HttpError {
+  constructor(message = 'Too many requests', readonly retryAfterSeconds?: number) {
+    super(429, message, 'RATE_LIMITED');
+  }
+}
+
+/** Raised when an AI feature is invoked while AI is disabled (no provider configured). */
+export class ServiceUnavailableError extends HttpError {
+  constructor(message = 'Service unavailable') {
+    super(503, message, 'SERVICE_UNAVAILABLE');
+  }
+}

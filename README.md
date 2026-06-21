@@ -4,16 +4,30 @@
 
 A real-time, collaborative Kanban board for project management — built as a strict-TypeScript full-stack monorepo.
 
-Create workspaces, invite teammates, and organize work on drag-and-drop boards.
-Every change — moving a card, editing a description, adding a comment — propagates
-live to everyone viewing the same board, complete with presence avatars and an
-activity feed.
+Create workspaces, invite teammates with role-based permissions, and organize
+work on drag-and-drop boards. Every change propagates live to everyone viewing
+the same board; an optional AI layer assists with planning; and a per-board
+analytics dashboard turns the board into throughput, cycle-time, and workload
+insights.
 
-## Features
+## Headline features
 
-- **Real-time collaboration** — card/column mutations, comments, and an activity
-  feed broadcast instantly over Socket.IO to every client in a board's room;
-  live presence shows who is viewing and which card they are editing.
+- 🟢 **Real-time collaboration** — card/column mutations, comments, and an
+  activity feed broadcast instantly over Socket.IO to everyone in a board's
+  room, with presence avatars showing who is viewing and editing what.
+- 🔐 **Role-based access control (RBAC)** — `OWNER / ADMIN / MEMBER / VIEWER`
+  roles enforced in the service layer on every workspace, board, column, card,
+  label, and comment operation (not just in the UI).
+- ✨ **AI assist (optional)** — board summaries, subtask breakdown, description
+  drafting, and label/priority suggestions behind a provider-agnostic service
+  (OpenAI or local Ollama). **Off by default** and completely inert until a
+  provider is configured. See [AI assist](#ai-assist-optional).
+- 📊 **Workspace analytics** — a read-only, per-board dashboard: cards by status,
+  assignee, and priority; weekly throughput; overdue count; and a created → done
+  cycle-time approximation. Accessible, responsive, theme-aware charts.
+
+## Also included
+
 - **Drag-and-drop Kanban** — reorder columns and move cards within and across
   columns with [@dnd-kit](https://dndkit.com/) (pointer + keyboard accessible),
   with optimistic updates and rollback on failure.
@@ -22,16 +36,14 @@ activity feed.
   backend are type-checked against the same definitions.
 - **JWT authentication** — register/login issues signed JWTs that gate both REST
   routes (`requireAuth` middleware) and every Socket.IO handshake.
-- **Workspace authorization** — membership- and role-based access control on
-  every workspace, board, column, card, label, and comment operation.
 - **Cards with structure** — descriptions, assignees, priorities, due dates,
-  color labels, and threaded comments.
+  color labels, and threaded comments with @mentions and notifications.
 - **Search & filtering** — free-text search plus assignee, label, priority, and
   due-date filters, all combined client-side for instant results; filter state
   lives in the URL (shareable/bookmarkable) and can be saved as a named view.
 - **Polished UI** — a small reusable design system (buttons, inputs, modals,
-  avatars, badges, spinners), responsive layout, loading/empty/error states, and
-  a persisted light/dark theme.
+  avatars, badges, spinners), responsive layout, loading/empty/error states,
+  reduced-motion support, and a persisted light/dark theme.
 
 ## Tech stack
 
@@ -47,6 +59,8 @@ activity feed.
 | Frontend | React 18, Vite, React Router |
 | Styling | Tailwind CSS |
 | Drag & drop | @dnd-kit |
+| Charts | Recharts (lazy-loaded, theme-aware) |
+| AI (optional) | OpenAI or local Ollama, provider-agnostic |
 | Testing | Vitest (+ Testing Library, jsdom) |
 | CI | GitHub Actions |
 
@@ -58,18 +72,21 @@ taskflow/
 ├── server/   # Express + Prisma + Socket.IO
 │   ├── prisma/   # schema.prisma (SQLite dev / Postgres-ready), migrations
 │   └── src/
-│       ├── routes/        # auth, workspaces, boards, columns, cards, labels, comments
-│       ├── services/      # data access, positioning, authorization, jwt, password
-│       ├── middleware/    # requireAuth, validateBody, error/404 handlers
+│       ├── routes/        # auth, workspaces, boards (+analytics), columns, cards, labels, comments, ai
+│       ├── services/      # data access, positioning, authorization, analytics, jwt, password
+│       │   └── ai/        # provider-agnostic AiService (OpenAI/Ollama/disabled), features
+│       ├── middleware/    # requireAuth, validateBody, requireAiEnabled, error/404 handlers
 │       ├── socket/        # typed, JWT-authenticated Socket.IO server + board rooms
-│       └── seed.ts        # demo data seeder
+│       └── seed.ts        # demo data seeder (backdated history for lively analytics)
 └── client/   # React + Vite + Tailwind
     └── src/
-        ├── components/ui/     # reusable design-system primitives
-        ├── components/board/  # KanbanBoard, CardModal, PresenceBar, ActivityFeed
-        ├── hooks/             # useBoardRealtime (socket subscription)
-        ├── lib/board/         # pure reorder + event-reducer logic
-        └── pages/             # Login, Register, Workspaces, Board
+        ├── components/ui/         # reusable design-system primitives
+        ├── components/board/      # KanbanBoard, CardModal, PresenceBar, ActivityFeed
+        ├── components/analytics/  # StatCard, ChartCard, theme-aware Recharts charts
+        ├── hooks/                 # useBoardRealtime (socket subscription)
+        ├── lib/board/             # pure reorder + event-reducer logic
+        ├── lib/analytics.ts       # chart palettes + formatting (pure, unit-tested)
+        └── pages/                 # Login, Register, Workspaces, Board, Analytics
 ```
 
 ## Prerequisites
@@ -88,7 +105,7 @@ npm install
 npm run build:shared
 
 # 3. Configure environment
-cp server/.env.example server/.env
+cp server/.env.example server/.env   # AI is off by default (AI_PROVIDER=none)
 cp client/.env.example client/.env   # optional; defaults to localhost:4000
 
 # 4. Create the SQLite database and generate the Prisma client
@@ -110,18 +127,24 @@ seed — sign in with a demo account below.
 
 ### Demo credentials
 
-`npm run seed` creates a workspace ("Acme Product") with a populated board and
-three teammates. All demo accounts share the same password:
+`npm run seed` creates a workspace ("Acme Product") with one teammate of **each
+role** and a board carrying ~20 cards — including a backdated history of
+completed work so the activity feed and the analytics dashboard look alive
+(multi-week throughput, realistic cycle times, overdue items). All demo accounts
+share the same password:
 
-| Email | Password |
-| --- | --- |
-| `alice@taskflow.dev` | `password123` |
-| `bob@taskflow.dev` | `password123` |
-| `carol@taskflow.dev` | `password123` |
+| Email | Password | Role |
+| --- | --- | --- |
+| `alice@taskflow.dev` | `password123` | Owner |
+| `bob@taskflow.dev` | `password123` | Admin |
+| `carol@taskflow.dev` | `password123` | Member |
+| `erin@taskflow.dev` | `password123` | Viewer |
 
 Sign in as two of them in separate browsers to see real-time collaboration and
-presence in action. Re-running `npm run seed` resets the demo data to a clean
-state (it is destructive — never run it against a production database).
+presence; sign in as Erin to see read-only (viewer) permissions in action. Open
+a board's analytics from the header chart icon. Re-running `npm run seed` resets
+the demo data to a clean state (it is destructive — never run it against a
+production database).
 
 ## Scripts (root)
 
@@ -172,6 +195,51 @@ accept either the Prisma client or a transaction client, so a "read siblings →
 compute position → write" sequence runs atomically inside `prisma.$transaction`
 while reusing the exact same authorization checks.
 
+### Analytics
+
+`GET /api/boards/:boardId/analytics?weeks=N` returns a read-only snapshot
+(`requireWorkspaceMember`, so viewers can read it too) computed entirely
+server-side: current distribution by status/assignee/priority, weekly throughput
+over the last _N_ weeks, an overdue count, and a created → done cycle-time
+approximation. "Completion" is defined as a card residing in the board's **last
+column** (highest position); a card's completion time is the most recent
+`card_moved` activity into that column, falling back to its creation time. The
+client only renders — charts are theme-aware [Recharts](https://recharts.org/),
+each wrapped in a `role="img"` figure with a visually-hidden data table so the
+information is never SVG-only, and the whole dashboard is **lazy-loaded** so the
+charting library stays out of the main bundle.
+
+### AI assist (optional)
+
+AI is an additive layer that follows a strict **graceful-degradation** contract:
+the app must run perfectly with **no AI configured**, which is the default.
+
+- **Provider-agnostic service.** A single `AiService` wraps one swappable
+  `LlmClient` (`server/src/services/ai`). Providers — OpenAI, Ollama, or a
+  disabled `null` default — are selected purely by config; no feature code ever
+  branches on the provider. `isEnabled()` is the one gate every feature, route,
+  and the health endpoint consult.
+- **Config-only switch.** `AI_PROVIDER` (`none` | `openai` | `ollama`, default
+  `none`) plus the matching credentials/model in `server/.env` turn AI on. A
+  provider without its credentials (e.g. `openai` with no `OPENAI_API_KEY`)
+  stays **disabled** rather than crashing. See
+  [`server/.env.example`](server/.env.example).
+- **Inert when off.** With AI disabled, every `/api/ai/*` route responds `404`
+  (the feature set genuinely does not exist), `/api/health` reports
+  `ai.enabled: false`, and the client renders **no AI UI at all**. The frontend
+  discovers availability from `/api/health` and gates every affordance on it.
+- **Features (all gated, authorized, and rate-limited per user):** *summarize
+  board* (a manager-friendly digest), *break into subtasks* (an editable
+  checklist), *draft description* (from a title), and *suggest labels/priority*.
+  Every result is a **draft/suggestion the user reviews and accepts** — AI never
+  mutates board data on its own.
+- **Defensive by design.** Structured features demand strict JSON and parse it
+  defensively (code-fence stripping, balanced-span extraction, zod validation),
+  falling back gracefully on bad output. Calls are per-user rate-limited
+  (`AI_RATE_LIMIT_PER_MINUTE`), time-bounded (`AI_REQUEST_TIMEOUT_MS`), and the
+  board summary is briefly cached to stay cost-aware. AI activity is logged as
+  structured JSON lines (metadata only — never prompt/response bodies).
+
 ## Testing
 
 ```bash
@@ -188,8 +256,18 @@ Runs both suites; no external services are required.
   run against an isolated SQLite `test.db` (pushed fresh in a global setup) and
   an in-process Socket.IO server.
 - **Client (Vitest + Testing Library):** board rendering, a drag-and-drop
-  reorder (keyboard sensor), the pure reorder logic, and `useBoardRealtime`
-  applying an incoming live broadcast (and ignoring events for other boards).
+  reorder (keyboard sensor), the pure reorder logic, `useBoardRealtime` applying
+  an incoming live broadcast (and ignoring events for other boards), and the
+  analytics dashboard's loading/empty/error states and accessible data tables.
+- **Analytics (Vitest):** status/priority/assignee aggregation, throughput
+  bucketing, overdue and cycle-time computation, the `weeks` clamp, empty-board
+  handling, and viewer-allowed / non-member-denied authorization.
+- **AI (Vitest, zero real API calls):** a *disabled* suite proving graceful
+  degradation (health reports AI off, every `/api/ai/*` route is `404`, the rest
+  of the app works), and an *enabled* suite driven by a **faked provider** that
+  covers summarize/subtasks/description/suggestions, strict-JSON parsing with
+  fallbacks, authorization, and per-user rate limiting. The client gating
+  (no AI UI when disabled) is unit-tested too.
 
 ## Deployment & PostgreSQL
 

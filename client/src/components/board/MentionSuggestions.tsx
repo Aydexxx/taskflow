@@ -33,7 +33,7 @@ export function MentionSuggestions({ members, activeIndex, onSelect }: MentionSu
                 : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700'
             }`}
           >
-            <Avatar name={member.user.name} />
+            <Avatar name={member.user.name} avatarUrl={member.user.avatarUrl} />
             {member.user.name}
           </button>
         </li>

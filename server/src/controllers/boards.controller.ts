@@ -1,9 +1,10 @@
 import type { Request, Response } from 'express';
-import type { ActivityWithActor, BoardWithChildren, Board, Column } from '@taskflow/shared';
+import type { ActivityWithActor, BoardAnalytics, BoardWithChildren, Board, Column } from '@taskflow/shared';
 import { currentUserId } from '../middleware/auth';
 import * as boardService from '../services/boards';
 import * as columnService from '../services/columns';
 import * as activityService from '../services/activity';
+import * as analyticsService from '../services/analytics';
 import type { UpdateBoardInput } from '../validation/board.schemas';
 import type { CreateColumnInput } from '../validation/column.schemas';
 
@@ -39,4 +40,13 @@ export async function listActivity(
 ): Promise<void> {
   const activity = await activityService.listActivity(req.params.boardId, currentUserId(req));
   res.json(activity);
+}
+
+export async function getAnalytics(
+  req: Request<{ boardId: string }, unknown, unknown, { weeks?: string }>,
+  res: Response<BoardAnalytics>,
+): Promise<void> {
+  const weeks = req.query.weeks === undefined ? undefined : Number.parseInt(req.query.weeks, 10);
+  const analytics = await analyticsService.getBoardAnalytics(req.params.boardId, currentUserId(req), weeks);
+  res.json(analytics);
 }

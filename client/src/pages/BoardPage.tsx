@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { ActivityCreatedEvent, ActivityWithActor, Card, Label, WorkspaceMemberWithUser } from '@taskflow/shared';
 import { api, ApiRequestError } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
@@ -7,9 +7,10 @@ import { AppHeader } from '../components/AppHeader';
 import { KanbanBoard } from '../components/board/KanbanBoard';
 import { PresenceBar } from '../components/board/PresenceBar';
 import { ActivityFeed } from '../components/board/ActivityFeed';
+import { BoardSummaryButton } from '../components/board/BoardSummaryButton';
 import { FilterBar } from '../components/board/FilterBar';
-import { ActivityIcon } from '../components/icons';
-import { IconButton } from '../components/ui';
+import { ActivityIcon, ChartIcon } from '../components/icons';
+import { Alert, IconButton } from '../components/ui';
 import type { CardFormValues } from '../components/board/CardModal';
 import type { ColumnWithCards } from '../lib/board/reorder';
 import { applyCardUpsert, applyColumnUpsert, normalizeBoardColumns } from '../lib/board/boardEvents';
@@ -19,6 +20,7 @@ import { useBoardRealtime } from '../hooks/useBoardRealtime';
 
 export function BoardPage(): JSX.Element {
   const { boardId } = useParams<{ boardId: string }>();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [boardTitle, setBoardTitle] = useState<string | null>(null);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
@@ -282,6 +284,15 @@ export function BoardPage(): JSX.Element {
         actions={
           <>
             <PresenceBar users={presence} isConnected={isConnected} currentUserId={user?.id} />
+            {boardId && <BoardSummaryButton boardId={boardId} />}
+            {boardId && (
+              <IconButton
+                onClick={() => navigate(`/boards/${boardId}/analytics`)}
+                aria-label="View board analytics"
+              >
+                <ChartIcon className="h-4 w-4" />
+              </IconButton>
+            )}
             <IconButton
               onClick={() => setShowActivity((current) => !current)}
               aria-label="Toggle activity feed"
@@ -294,11 +305,10 @@ export function BoardPage(): JSX.Element {
         }
       />
       {mutationError && (
-        <div className="flex items-center justify-between bg-red-50 px-6 py-2 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">
-          <span>{mutationError}</span>
-          <button type="button" onClick={() => setMutationError(null)} className="font-medium hover:underline">
-            Dismiss
-          </button>
+        <div className="px-6 pt-3">
+          <Alert tone="danger" onDismiss={() => setMutationError(null)}>
+            {mutationError}
+          </Alert>
         </div>
       )}
       {columns !== null && workspaceId !== null && (

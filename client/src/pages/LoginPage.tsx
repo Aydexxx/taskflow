@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ApiRequestError } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { AuthLayout } from '../components/AuthLayout';
-import { Button, FieldLabel, Input } from '../components/ui';
+import { Alert, Button, FieldLabel, Input } from '../components/ui';
 
 export function LoginPage(): JSX.Element {
   const { login } = useAuth();
@@ -19,7 +19,7 @@ export function LoginPage(): JSX.Element {
     setIsSubmitting(true);
     try {
       await login({ email, password });
-      navigate('/', { replace: true });
+      navigate('/app', { replace: true });
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : 'Login failed');
     } finally {
@@ -56,7 +56,7 @@ export function LoginPage(): JSX.Element {
           />
         </div>
 
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <Alert tone="danger">{error}</Alert>}
 
         <Button type="submit" isLoading={isSubmitting} className="w-full">
           {isSubmitting ? 'Signing in…' : 'Sign in'}

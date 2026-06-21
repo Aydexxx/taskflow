@@ -14,7 +14,7 @@ import { useAuth } from '../context/AuthContext';
 import { AppHeader } from '../components/AppHeader';
 import { Avatar } from '../components/Avatar';
 import { TrashIcon } from '../components/icons';
-import { Button, EmptyState, Input, Select, Spinner } from '../components/ui';
+import { Badge, Button, EmptyState, Input, Select, Spinner } from '../components/ui';
 import { useWorkspaceRealtime } from '../hooks/useWorkspaceRealtime';
 import { myRole as deriveMyRole } from '../lib/workspaceRole';
 
@@ -77,7 +77,7 @@ export function WorkspaceMembersPage(): JSX.Element {
   const handleMemberRemoved = useCallback(
     (event: WorkspaceMemberRemovedEvent) => {
       if (event.userId === user?.id) {
-        navigate('/');
+        navigate('/app');
         return;
       }
       setMembers((current) => current?.filter((member) => member.userId !== event.userId) ?? current);
@@ -214,9 +214,9 @@ export function WorkspaceMembersPage(): JSX.Element {
             return (
               <li
                 key={member.id}
-                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900"
+                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-soft ring-1 ring-slate-900/[0.02] transition duration-150 ease-out-soft hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:ring-0"
               >
-                <Avatar name={member.user.name} />
+                <Avatar name={member.user.name} avatarUrl={member.user.avatarUrl} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
                     {member.user.name}
@@ -240,9 +240,7 @@ export function WorkspaceMembersPage(): JSX.Element {
                     ))}
                   </Select>
                 ) : (
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                    {member.role}
-                  </span>
+                  <Badge tone={member.role === 'OWNER' ? 'accent' : 'neutral'}>{member.role}</Badge>
                 )}
 
                 {canManageRow && (

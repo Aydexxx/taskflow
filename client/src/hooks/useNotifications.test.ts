@@ -58,7 +58,7 @@ vi.mock('../lib/api', () => ({
 
 import { useNotifications } from './useNotifications';
 
-const MOCK_USER: User = { id: 'user-1', email: 'ada@example.com', name: 'Ada', avatarUrl: null, createdAt: '', updatedAt: '' };
+const MOCK_USER: User = { id: 'user-1', email: 'ada@example.com', name: 'Ada', avatarUrl: null, title: null, bio: null, socialLinks: {}, createdAt: '', updatedAt: '' };
 
 function makeNotification(overrides: Partial<NotificationWithActor> = {}): NotificationWithActor {
   return {
@@ -70,7 +70,7 @@ function makeNotification(overrides: Partial<NotificationWithActor> = {}): Notif
     metadata: { cardId: 'card-1', cardTitle: 'Card 1' },
     isRead: false,
     createdAt: new Date().toISOString(),
-    actor: { id: 'user-2', email: 'bob@example.com', name: 'Bob', avatarUrl: null, createdAt: '', updatedAt: '' },
+    actor: { id: 'user-2', email: 'bob@example.com', name: 'Bob', avatarUrl: null, title: null, bio: null, socialLinks: {}, createdAt: '', updatedAt: '' },
     ...overrides,
   };
 }

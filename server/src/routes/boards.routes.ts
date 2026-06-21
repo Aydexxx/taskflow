@@ -1,5 +1,12 @@
 import { Router } from 'express';
-import { createColumn, deleteBoard, getBoard, listActivity, updateBoard } from '../controllers/boards.controller';
+import {
+  createColumn,
+  deleteBoard,
+  getAnalytics,
+  getBoard,
+  listActivity,
+  updateBoard,
+} from '../controllers/boards.controller';
 import { asyncHandler } from '../middleware/asyncHandler';
 import { requireAuth } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
@@ -15,5 +22,6 @@ router.delete('/:boardId', requireAuth, asyncHandler(deleteBoard));
 router.post('/:boardId/columns', requireAuth, validateBody(createColumnSchema), asyncHandler(createColumn));
 
 router.get('/:boardId/activity', requireAuth, asyncHandler(listActivity));
+router.get('/:boardId/analytics', requireAuth, asyncHandler(getAnalytics));
 
 export default router;

@@ -5,3 +5,6 @@ export { CONTROL_CLASS, FieldLabel, Input, Textarea, Select } from './Field';
 export { Modal } from './Modal';
 export { Spinner } from './Spinner';
 export { EmptyState } from './EmptyState';
+export { Badge, type BadgeTone } from './Badge';
+export { Tooltip } from './Tooltip';
+export { Alert, type AlertTone } from './Alert';

@@ -200,7 +200,7 @@ export function KanbanBoard({
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex h-full gap-4 overflow-x-auto p-6">
+      <div className="scrollbar-subtle flex h-full gap-4 overflow-x-auto p-6">
         <SortableContext items={columns.map((column) => column.id)} strategy={horizontalListSortingStrategy}>
           {columns.map((column) => (
             <BoardColumn
@@ -221,7 +221,7 @@ export function KanbanBoard({
           {isAddingColumn ? (
             <form
               onSubmit={handleAddColumn}
-              className="flex flex-col gap-2 rounded-xl bg-slate-200/60 p-3 dark:bg-slate-900/70"
+              className="flex flex-col gap-2 rounded-2xl border border-slate-200/70 bg-slate-100/70 p-3 shadow-soft dark:border-slate-800/70 dark:bg-slate-900/50"
             >
               <input
                 autoFocus
@@ -236,7 +236,7 @@ export function KanbanBoard({
                 }}
                 placeholder="Column title"
                 aria-label="New column title"
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-soft transition duration-150 ease-out-soft focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/25 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/25"
               />
               {createColumnError && <p className="text-xs text-red-600 dark:text-red-400">{createColumnError}</p>}
               <div className="flex gap-2">
@@ -261,7 +261,7 @@ export function KanbanBoard({
             <button
               type="button"
               onClick={() => setIsAddingColumn(true)}
-              className="flex w-full items-center gap-1 rounded-xl bg-slate-200/40 px-3 py-2.5 text-sm text-slate-500 hover:bg-slate-200 dark:bg-slate-900/40 dark:text-slate-400 dark:hover:bg-slate-800"
+              className="flex w-full items-center gap-1.5 rounded-2xl border border-dashed border-slate-300 bg-slate-100/40 px-3 py-2.5 text-sm font-medium text-slate-500 transition duration-150 ease-out-soft hover:border-indigo-300 hover:bg-white hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-900/30 dark:text-slate-400 dark:hover:border-indigo-500/50 dark:hover:bg-slate-800/60 dark:hover:text-indigo-300"
             >
               <PlusIcon className="h-3.5 w-3.5" />
               {columns.length === 0 ? 'Add your first column' : 'Add column'}
@@ -270,17 +270,21 @@ export function KanbanBoard({
         </div>
       </div>
 
-      <DragOverlay>
+      <DragOverlay dropAnimation={{ duration: 200, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }}>
         {activeCard && (
-          <CardItem
-            card={activeCard}
-            assignee={members.find((member) => member.userId === activeCard.assigneeId)}
-            onEdit={() => {}}
-          />
+          // Lift the dragged card off the board: a slight tilt + scale and a deep,
+          // soft shadow signal "picked up" without obscuring the drop target.
+          <div className="rotate-2 scale-[1.03] cursor-grabbing rounded-xl shadow-overlay ring-1 ring-indigo-400/40">
+            <CardItem
+              card={activeCard}
+              assignee={members.find((member) => member.userId === activeCard.assigneeId)}
+              onEdit={() => {}}
+            />
+          </div>
         )}
         {activeColumn && (
-          <div className="w-72 rounded-xl bg-slate-200 p-3 shadow-lg">
-            <p className="truncate text-sm font-semibold text-slate-700">{activeColumn.title}</p>
+          <div className="w-72 rotate-1 scale-[1.02] rounded-2xl border border-slate-200 bg-slate-100/95 p-3 shadow-overlay ring-1 ring-indigo-400/30 dark:border-slate-800 dark:bg-slate-900/95">
+            <p className="truncate text-sm font-semibold text-slate-700 dark:text-slate-200">{activeColumn.title}</p>
           </div>
         )}
       </DragOverlay>

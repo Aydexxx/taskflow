@@ -36,10 +36,10 @@ export function CardItem({ card, assignee, editingBy, isDimmed = false, onEdit }
       ref={setNodeRef}
       style={style}
       data-testid="card-item"
-      className={`flex items-start gap-1 rounded-lg border bg-white p-2 shadow-sm transition hover:shadow dark:bg-slate-800 ${
+      className={`group/card flex items-start gap-1 rounded-xl border bg-white p-2.5 shadow-soft transition duration-150 ease-out-soft hover:-translate-y-0.5 hover:shadow-md dark:bg-slate-800/90 ${
         editingBy
           ? 'border-amber-300 ring-1 ring-amber-300 dark:border-amber-500/50 dark:ring-amber-500/40'
-          : 'border-slate-200 hover:border-indigo-300 dark:border-slate-700 dark:hover:border-indigo-500/60'
+          : 'border-slate-200/90 hover:border-indigo-300 dark:border-slate-700/80 dark:hover:border-indigo-500/60'
       }`}
     >
       <button
@@ -47,7 +47,7 @@ export function CardItem({ card, assignee, editingBy, isDimmed = false, onEdit }
         {...attributes}
         {...listeners}
         aria-label={`Drag card: ${card.title}`}
-        className="mt-1 flex-shrink-0 cursor-grab touch-none rounded p-0.5 text-slate-300 hover:text-slate-500 active:cursor-grabbing dark:text-slate-600 dark:hover:text-slate-400"
+        className="mt-0.5 flex-shrink-0 cursor-grab touch-none rounded p-0.5 text-slate-300 opacity-60 transition group-hover/card:opacity-100 hover:text-slate-500 active:cursor-grabbing dark:text-slate-600 dark:hover:text-slate-400"
       >
         <GripIcon />
       </button>
@@ -67,7 +67,7 @@ export function CardItem({ card, assignee, editingBy, isDimmed = false, onEdit }
             {card.labels.map((label) => (
               <span
                 key={label.id}
-                className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${labelChipClass(label.color)}`}
+                className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${labelChipClass(label.color)}`}
               >
                 {label.name}
               </span>
@@ -76,7 +76,7 @@ export function CardItem({ card, assignee, editingBy, isDimmed = false, onEdit }
         )}
         <div className="mt-2 flex items-center gap-1.5">
           {card.priority !== 'MEDIUM' && (
-            <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${PRIORITY_BADGE_CLASS[card.priority]}`}>
+            <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${PRIORITY_BADGE_CLASS[card.priority]}`}>
               {PRIORITY_LABELS[card.priority]}
             </span>
           )}
@@ -88,7 +88,7 @@ export function CardItem({ card, assignee, editingBy, isDimmed = false, onEdit }
             </span>
           )}
           <span className="flex-1" />
-          {assignee && <Avatar name={assignee.user.name} />}
+          {assignee && <Avatar name={assignee.user.name} avatarUrl={assignee.user.avatarUrl} />}
         </div>
       </button>
     </div>

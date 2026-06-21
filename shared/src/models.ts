@@ -108,11 +108,29 @@ export interface ActivityMetadata {
   commentExcerpt?: string;
 }
 
+/**
+ * A user's public social links. All optional; absent/empty links are omitted.
+ * Stored as JSON on the User row (SQLite has no native JSON column), parsed in
+ * the app layer (see `toSafeUser`).
+ */
+export interface SocialLinks {
+  website?: string;
+  github?: string;
+  linkedin?: string;
+  twitter?: string;
+}
+
 export interface User {
   id: string;
   email: string;
   name: string;
   avatarUrl: string | null;
+  /** Short role/headline shown next to the name (e.g. "Product Designer"). */
+  title: string | null;
+  /** Free-form profile bio. */
+  bio: string | null;
+  /** Public social links; always present (defaults to `{}`). */
+  socialLinks: SocialLinks;
   createdAt: ISODateString;
   updatedAt: ISODateString;
 }

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ApiRequestError } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { AuthLayout } from '../components/AuthLayout';
-import { Button, FieldLabel, Input } from '../components/ui';
+import { Alert, Button, FieldLabel, Input } from '../components/ui';
 
 export function RegisterPage(): JSX.Element {
   const { register } = useAuth();
@@ -20,7 +20,7 @@ export function RegisterPage(): JSX.Element {
     setIsSubmitting(true);
     try {
       await register({ name, email, password });
-      navigate('/', { replace: true });
+      navigate('/app', { replace: true });
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : 'Registration failed');
     } finally {
@@ -72,7 +72,7 @@ export function RegisterPage(): JSX.Element {
           <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">At least 8 characters.</p>
         </div>
 
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <Alert tone="danger">{error}</Alert>}
 
         <Button type="submit" isLoading={isSubmitting} className="w-full">
           {isSubmitting ? 'Creating account…' : 'Create account'}

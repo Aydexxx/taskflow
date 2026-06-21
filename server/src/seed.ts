@@ -1,9 +1,11 @@
 /**
  * Demo data seeder for TaskFlow.
  *
- * Populates a realistic workspace — a few teammates, a board with several
- * columns, cards with priorities/assignees/due dates/labels, comments, and a
- * resulting activity feed — so the app is immediately explorable.
+ * Populates a realistic workspace — teammates across every role, a board with
+ * Backlog → To Do → In Progress → Done columns, cards with priorities,
+ * assignees, due dates, labels, and comments, plus a *backdated* history of
+ * completed work so the activity feed, notifications, and analytics dashboard
+ * all look alive (multi-week throughput, real cycle times, overdue items).
  *
  * Run with: `npm run seed` (from the repo root) or `npm run seed -w server`.
  *
@@ -36,9 +38,12 @@ const DEMO_USERS = [
 
 /** A date `days` from now (negative = in the past), as an ISO string. */
 function daysFromNow(days: number): string {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  return date.toISOString();
+  return new Date(Date.now() + days * 86_400_000).toISOString();
+}
+
+/** A `Date` exactly `days` in the past. */
+function daysAgo(days: number): Date {
+  return new Date(Date.now() - days * 86_400_000);
 }
 
 async function wipe(): Promise<void> {
@@ -46,6 +51,24 @@ async function wipe(): Promise<void> {
   // comments, and activities; users are removed afterwards.
   await prisma.workspace.deleteMany();
   await prisma.user.deleteMany();
+}
+
+/**
+ * Backdate a card and its activity log so completed work appears to have
+ * happened in the past. `createdAt` becomes the card's creation point and the
+ * card's `card_moved` (into Done) activity becomes its completion point — which
+ * is exactly what the analytics service reads for throughput and cycle time.
+ */
+async function backdateCompletion(cardId: string, createdAt: Date, completedAt: Date): Promise<void> {
+  await prisma.card.update({ where: { id: cardId }, data: { createdAt } });
+
+  const activities = await prisma.activity.findMany({ where: { type: 'card_moved' } });
+  for (const activity of activities) {
+    const metadata = JSON.parse(activity.metadata) as { cardId?: string };
+    if (metadata.cardId === cardId) {
+      await prisma.activity.update({ where: { id: activity.id }, data: { createdAt: completedAt } });
+    }
+  }
 }
 
 async function main(): Promise<void> {
@@ -102,7 +125,7 @@ async function main(): Promise<void> {
   const done = await createColumn(board.id, alice.id, { title: 'Done' });
   console.log(`   • board "${board.title}" with 4 columns`);
 
-  // --- Cards -----------------------------------------------------------------
+  // --- Active cards (current board state) ------------------------------------
   interface CardSpec {
     columnId: string;
     title: string;
@@ -136,13 +159,21 @@ async function main(): Promise<void> {
       labelNames: ['Research'],
     },
     {
+      columnId: backlog.id,
+      title: 'Keyboard shortcuts for power users',
+      description: 'Quick-add, search focus, and board navigation via the keyboard.',
+      actorId: carol.id,
+      priority: 'LOW',
+      labelNames: ['Feature'],
+    },
+    {
       columnId: todo.id,
       title: 'Card due-date reminders',
       description: 'Email teammates when an assigned card is overdue.',
       actorId: alice.id,
       assignAfter: bob.id,
       priority: 'HIGH',
-      dueDate: daysFromNow(5),
+      dueDate: daysFromNow(4),
       labelNames: ['Feature'],
       comments: [{ authorId: alice.id, body: 'Let’s start with in-app banners before email.' }],
     },
@@ -152,8 +183,18 @@ async function main(): Promise<void> {
       actorId: carol.id,
       assigneeId: carol.id,
       priority: 'MEDIUM',
-      dueDate: daysFromNow(10),
+      dueDate: daysFromNow(9),
       labelNames: ['Docs'],
+    },
+    {
+      columnId: todo.id,
+      title: 'Audit color contrast for accessibility',
+      description: 'Verify WCAG AA across light and dark themes.',
+      actorId: alice.id,
+      assignAfter: carol.id,
+      priority: 'MEDIUM',
+      dueDate: daysFromNow(-2), // overdue
+      labelNames: ['Design', 'Docs'],
     },
     {
       columnId: inProgress.id,
@@ -162,11 +203,11 @@ async function main(): Promise<void> {
       actorId: bob.id,
       assignAfter: bob.id,
       priority: 'URGENT',
-      dueDate: daysFromNow(-1),
+      dueDate: daysFromNow(-1), // overdue
       labelNames: ['Bug', 'Urgent'],
       comments: [
         { authorId: bob.id, body: 'Reproduced on Safari 17. Looks like a transform timing issue.' },
-        { authorId: alice.id, body: 'Nice find — can you check the @dnd-kit version too?' },
+        { authorId: alice.id, body: `Nice find @[${bob.name}](${bob.id}) — can you check the @dnd-kit version too?` },
       ],
     },
     {
@@ -177,23 +218,17 @@ async function main(): Promise<void> {
       assignAfter: alice.id,
       priority: 'HIGH',
       labelNames: ['Feature'],
+      comments: [{ authorId: carol.id, body: `@[${alice.name}](${alice.id}) the avatar stack looks great!` }],
     },
     {
-      columnId: done.id,
-      title: 'Set up JWT authentication',
+      columnId: inProgress.id,
+      title: 'Workspace analytics dashboard',
+      description: 'Status, throughput, and cycle-time charts per board.',
       actorId: alice.id,
-      assigneeId: alice.id,
+      assignAfter: bob.id,
       priority: 'HIGH',
-      labelNames: ['Feature'],
-      comments: [{ authorId: carol.id, body: 'Verified token refresh works end to end. 🎉' }],
-    },
-    {
-      columnId: done.id,
-      title: 'Design the Kanban board layout',
-      actorId: carol.id,
-      assigneeId: carol.id,
-      priority: 'MEDIUM',
-      labelNames: ['Design'],
+      dueDate: daysFromNow(6),
+      labelNames: ['Feature', 'Design'],
     },
   ];
 
@@ -220,11 +255,49 @@ async function main(): Promise<void> {
       commentCount += 1;
     }
   }
-  console.log(`   • ${cardCount} cards, ${commentCount} comments`);
 
-  // A cross-column move, so the activity feed shows a realistic `card_moved` entry.
-  const shipped = await createCard(todo.id, alice.id, { title: 'Ship marketing site', priority: 'MEDIUM' });
-  await moveCard(shipped.id, alice.id, { columnId: done.id, index: 0 });
+  // --- Completed history (backdated for analytics) ---------------------------
+  // Each card is created, moved to Done, then backdated so completions spread
+  // across the last several weeks with realistic created → done cycle times.
+  interface CompletedSpec {
+    title: string;
+    actorId: string;
+    assigneeId: string;
+    priority: CardPriority;
+    labelNames: string[];
+    createdDaysAgo: number;
+    completedDaysAgo: number;
+  }
+
+  const completedSpecs: CompletedSpec[] = [
+    { title: 'Set up JWT authentication', actorId: alice.id, assigneeId: alice.id, priority: 'HIGH', labelNames: ['Feature'], createdDaysAgo: 52, completedDaysAgo: 48 },
+    { title: 'Design the Kanban board layout', actorId: carol.id, assigneeId: carol.id, priority: 'MEDIUM', labelNames: ['Design'], createdDaysAgo: 50, completedDaysAgo: 45 },
+    { title: 'Workspace + board CRUD APIs', actorId: bob.id, assigneeId: bob.id, priority: 'HIGH', labelNames: ['Feature'], createdDaysAgo: 44, completedDaysAgo: 38 },
+    { title: 'Role-based access control', actorId: alice.id, assigneeId: bob.id, priority: 'URGENT', labelNames: ['Feature'], createdDaysAgo: 40, completedDaysAgo: 31 },
+    { title: 'Drag-and-drop reordering', actorId: bob.id, assigneeId: carol.id, priority: 'HIGH', labelNames: ['Feature'], createdDaysAgo: 33, completedDaysAgo: 24 },
+    { title: 'Comment threads on cards', actorId: carol.id, assigneeId: carol.id, priority: 'MEDIUM', labelNames: ['Feature'], createdDaysAgo: 26, completedDaysAgo: 23 },
+    { title: '@mentions and notifications', actorId: alice.id, assigneeId: alice.id, priority: 'HIGH', labelNames: ['Feature'], createdDaysAgo: 21, completedDaysAgo: 16 },
+    { title: 'Search and saved filter views', actorId: bob.id, assigneeId: bob.id, priority: 'MEDIUM', labelNames: ['Feature'], createdDaysAgo: 17, completedDaysAgo: 11 },
+    { title: 'AI assist (summaries & subtasks)', actorId: alice.id, assigneeId: alice.id, priority: 'HIGH', labelNames: ['Feature', 'Research'], createdDaysAgo: 13, completedDaysAgo: 9 },
+    { title: 'Polish empty and loading states', actorId: carol.id, assigneeId: carol.id, priority: 'LOW', labelNames: ['Design'], createdDaysAgo: 8, completedDaysAgo: 4 },
+    { title: 'Fix flaky socket reconnect test', actorId: bob.id, assigneeId: bob.id, priority: 'MEDIUM', labelNames: ['Bug'], createdDaysAgo: 5, completedDaysAgo: 2 },
+  ];
+
+  for (const spec of completedSpecs) {
+    const card = await createCard(todo.id, spec.actorId, {
+      title: spec.title,
+      assigneeId: spec.assigneeId,
+      priority: spec.priority,
+    });
+    for (const name of spec.labelNames) {
+      await addLabelToCard(card.id, labelId(name), spec.actorId);
+    }
+    await moveCard(card.id, spec.actorId, { columnId: done.id, index: 0 });
+    await backdateCompletion(card.id, daysAgo(spec.createdDaysAgo), daysAgo(spec.completedDaysAgo));
+    cardCount += 1;
+  }
+
+  console.log(`   • ${cardCount} cards (${completedSpecs.length} completed across ~8 weeks), ${commentCount} comments`);
 
   console.log('\n✅  Seed complete. Demo login:');
   for (const user of DEMO_USERS) {

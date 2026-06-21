@@ -79,7 +79,7 @@ export function WorkspaceBoardsPage(): JSX.Element {
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
       <AppHeader
         title={workspace?.name ?? 'Boards'}
-        backTo={{ to: '/', label: 'Workspaces' }}
+        backTo={{ to: '/app', label: 'Workspaces' }}
         actions={
           workspaceId && (
             <Link
@@ -124,9 +124,9 @@ export function WorkspaceBoardsPage(): JSX.Element {
             <li key={board.id} className="group relative">
               <Link
                 to={`/boards/${board.id}`}
-                className="block rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-500/50"
+                className="block rounded-2xl border border-slate-200 bg-white p-5 shadow-soft ring-1 ring-slate-900/[0.02] transition duration-150 ease-out-soft hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:ring-0 dark:hover:border-indigo-500/50"
               >
-                <h2 className="pr-6 text-lg font-semibold text-slate-900 dark:text-slate-100">{board.title}</h2>
+                <h2 className="pr-6 text-base font-semibold tracking-tight text-slate-900 dark:text-slate-100">{board.title}</h2>
                 {board.description && (
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{board.description}</p>
                 )}

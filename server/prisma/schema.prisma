@@ -22,6 +22,13 @@ model User {
   name         String
   passwordHash String
   avatarUrl    String?
+  // Short role/headline shown next to the name (e.g. "Product Designer").
+  title        String?
+  // Free-form profile bio.
+  bio          String?
+  // JSON-encoded SocialLinks (see @taskflow/shared). SQLite has no native JSON
+  // column, so the app layer serializes/parses this String.
+  socialLinks  String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

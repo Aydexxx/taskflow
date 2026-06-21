@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { ApiError } from '@taskflow/shared';
-import { HttpError } from '../errors/HttpError';
+import { HttpError, TooManyRequestsError } from '../errors/HttpError';
 
 /** 404 handler for unmatched routes. */
 export function notFoundHandler(_req: Request, res: Response): void {
@@ -19,6 +19,10 @@ export function errorHandler(
   _next: NextFunction,
 ): void {
   if (err instanceof HttpError) {
+    // Advertise when the client may retry a rate-limited AI request.
+    if (err instanceof TooManyRequestsError && err.retryAfterSeconds !== undefined) {
+      res.setHeader('Retry-After', String(err.retryAfterSeconds));
+    }
     const body: ApiError = { error: { message: err.message, code: err.code } };
     res.status(err.status).json(body);
     return;

@@ -6,6 +6,7 @@ import type { Card, WorkspaceMemberWithUser } from '@taskflow/shared';
 import type { ColumnWithCards } from '../../lib/board/reorder';
 import { cardMatchesFilters, hasActiveFilters, type BoardFilters } from '../../lib/board/filters';
 import { CardItem } from './CardItem';
+import { Badge } from '../ui';
 import { GripIcon, PlusIcon, TrashIcon } from '../icons';
 
 interface BoardColumnProps {
@@ -37,7 +38,7 @@ export function BoardColumn({
   // the column — crucially including an *empty* column, whose card SortableContext
   // has no items to collide with. Carries columnId so resolveOverColumn lands the
   // card at the end (index === cards.length, i.e. position 0 when empty).
-  const { setNodeRef: setDropRef } = useDroppable({
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: `col-dropzone:${column.id}`,
     data: { type: 'column', columnId: column.id },
   });
@@ -74,7 +75,7 @@ export function BoardColumn({
       ref={setNodeRef}
       style={style}
       data-testid="board-column"
-      className="flex max-h-full w-72 flex-shrink-0 flex-col rounded-xl bg-slate-200/60 p-3 dark:bg-slate-900/70"
+      className="flex max-h-full w-72 flex-shrink-0 flex-col rounded-2xl border border-slate-200/70 bg-slate-100/70 p-3 shadow-soft transition-shadow dark:border-slate-800/70 dark:bg-slate-900/50"
     >
       <div className="mb-3 flex items-center gap-1">
         <button
@@ -112,9 +113,9 @@ export function BoardColumn({
           </button>
         )}
 
-        <span className="flex-shrink-0 rounded-full bg-slate-300/50 px-1.5 text-xs font-medium text-slate-500 dark:bg-slate-700/60 dark:text-slate-400">
+        <Badge mono className="flex-shrink-0">
           {filtersActive ? `${matchedCount}/${column.cards.length}` : column.cards.length}
-        </span>
+        </Badge>
         <button
           type="button"
           onClick={() => onDelete(column.id)}
@@ -126,7 +127,14 @@ export function BoardColumn({
       </div>
 
       <SortableContext items={column.cards.map((card) => card.id)} strategy={verticalListSortingStrategy}>
-        <div ref={setDropRef} className="flex min-h-[60px] flex-col gap-2 overflow-y-auto">
+        <div
+          ref={setDropRef}
+          className={`scrollbar-subtle flex min-h-[60px] flex-col gap-2 overflow-y-auto rounded-lg p-0.5 transition-colors duration-150 ${
+            isOver
+              ? 'bg-indigo-500/10 outline-dashed outline-2 outline-offset-[-2px] outline-indigo-400/60 dark:bg-indigo-500/10'
+              : 'outline-2 outline-transparent'
+          }`}
+        >
           {column.cards.map((card) => (
             <CardItem
               key={card.id}

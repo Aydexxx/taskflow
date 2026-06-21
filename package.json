@@ -28,5 +28,8 @@
     "typecheck": "npm run typecheck -w @taskflow/shared && npm run typecheck -w @taskflow/server && npm run typecheck -w @taskflow/client",
     "lint": "npm run lint -w @taskflow/shared && npm run lint -w @taskflow/server && npm run lint -w @taskflow/client",
     "test": "npm run test -w @taskflow/server && npm run test -w @taskflow/client"
+  },
+  "dependencies": {
+    "lucide-react": "^1.21.0"
   }
 }

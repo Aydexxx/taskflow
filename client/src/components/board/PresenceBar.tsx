@@ -24,7 +24,7 @@ export function PresenceBar({ users, isConnected, currentUserId }: PresenceBarPr
   return (
     <div className="flex items-center gap-2" aria-label="People viewing this board">
       <span
-        className={`h-2 w-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+        className={`h-2 w-2 rounded-full ${isConnected ? 'bg-emerald-500 shadow-[0_0_0_3px_rgb(16_185_129_/_0.18)]' : 'bg-slate-300 dark:bg-slate-600'}`}
         title={isConnected ? 'Live — connected' : 'Reconnecting…'}
         aria-hidden="true"
       />
@@ -39,7 +39,7 @@ export function PresenceBar({ users, isConnected, currentUserId }: PresenceBarPr
                 user.editingCardId ? 'ring-amber-300' : 'ring-white dark:ring-slate-900'
               }`}
             >
-              <Avatar name={user.name} />
+              <Avatar name={user.name} avatarUrl={user.avatarUrl} />
             </span>
           );
         })}

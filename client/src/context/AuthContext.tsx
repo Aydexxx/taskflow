@@ -19,6 +19,8 @@ interface AuthContextValue {
   isLoading: boolean;
   login: (input: LoginRequest) => Promise<void>;
   register: (input: RegisterRequest) => Promise<void>;
+  /** Replace the cached current-user view (e.g. after a profile update). */
+  updateUser: (user: User) => void;
   logout: () => void;
 }
 
@@ -39,6 +41,10 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
     tokenStorage.clear();
     setToken(null);
     setUser(null);
+  }, []);
+
+  const updateUser = useCallback((nextUser: User): void => {
+    setUser(nextUser);
   }, []);
 
   // Keep the Socket.IO connection's auth in sync with the current session.
@@ -87,8 +93,8 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
   );
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, token, isLoading, login, register, logout }),
-    [user, token, isLoading, login, register, logout],
+    () => ({ user, token, isLoading, login, register, updateUser, logout }),
+    [user, token, isLoading, login, register, updateUser, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

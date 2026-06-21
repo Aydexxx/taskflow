@@ -7,11 +7,92 @@
      any component styles apply (avoids a flash on first paint). */
   html {
     @apply bg-slate-100 text-slate-900;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    /* Inter's contextual alternates + tabular-friendly defaults. */
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    /* Smooth in-page anchor jumps (landing nav). The reduced-motion block below
+       resets this to `auto` for users who opt out. */
+    scroll-behavior: smooth;
   }
 
   html.dark {
     @apply bg-slate-950 text-slate-100;
     color-scheme: dark;
+  }
+
+  body {
+    @apply antialiased;
+  }
+
+  /* Headings adopt the display face with tightened tracking for a confident,
+     editorial feel. Applies app-wide without touching each heading's markup. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display tracking-tight;
+  }
+
+  /* Selection picks up the accent rather than the browser default. */
+  ::selection {
+    @apply bg-indigo-500/25 text-slate-900;
+  }
+  html.dark ::selection {
+    @apply bg-indigo-400/30 text-slate-50;
+  }
+}
+
+@layer components {
+  /* Subtle, themeable scrollbars for the board's horizontal scroller and any
+     scrollable panel — quieter than the OS default, consistent across themes. */
+  .scrollbar-subtle {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.slate.300') transparent;
+  }
+  html.dark .scrollbar-subtle {
+    scrollbar-color: theme('colors.slate.700') transparent;
+  }
+  .scrollbar-subtle::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .scrollbar-subtle::-webkit-scrollbar-thumb {
+    @apply rounded-full border-2 border-solid border-transparent bg-slate-300/70 bg-clip-content;
+  }
+  .scrollbar-subtle::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-400/70;
+  }
+  html.dark .scrollbar-subtle::-webkit-scrollbar-thumb {
+    @apply bg-slate-700/70;
+  }
+  html.dark .scrollbar-subtle::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-600/80;
+  }
+}
+
+@layer utilities {
+  /* Faint top-edge sheen for premium surfaces (cards, panels). Layered under
+     content; theme-aware. Pure decoration — safe to drop under reduced motion. */
+  .surface-sheen {
+    background-image: linear-gradient(to bottom, rgb(255 255 255 / 0.04), transparent 40%);
+  }
+
+  /* Faint grid backdrop for the landing hero, radially masked so it fades to
+     nothing at the edges. CSS-only, no image asset. */
+  .bg-grid {
+    background-size: 48px 48px;
+    background-image:
+      linear-gradient(to right, theme('colors.slate.900' / 6%) 1px, transparent 1px),
+      linear-gradient(to bottom, theme('colors.slate.900' / 6%) 1px, transparent 1px);
+    -webkit-mask-image: radial-gradient(ellipse 60% 55% at 50% 35%, #000 50%, transparent 100%);
+    mask-image: radial-gradient(ellipse 60% 55% at 50% 35%, #000 50%, transparent 100%);
+  }
+  html.dark .bg-grid {
+    background-image:
+      linear-gradient(to right, theme('colors.slate.100' / 7%) 1px, transparent 1px),
+      linear-gradient(to bottom, theme('colors.slate.100' / 7%) 1px, transparent 1px);
   }
 }
 

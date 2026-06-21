@@ -1,4 +1,5 @@
-import type { CardPriority, LabelColor, User, WorkspaceMember, WorkspaceRole } from './models';
+import type { AIStatus } from './ai';
+import type { CardPriority, LabelColor, SocialLinks, User, WorkspaceMember, WorkspaceRole } from './models';
 
 /**
  * HTTP API contract types shared by server and client.
@@ -8,6 +9,8 @@ import type { CardPriority, LabelColor, User, WorkspaceMember, WorkspaceRole } f
 export interface HealthResponse {
   status: 'ok';
   time: string;
+  /** AI availability, so the client can show/hide AI features without extra round-trips. */
+  ai: AIStatus;
 }
 
 /** Standard error envelope returned by the API on failure. */
@@ -35,6 +38,28 @@ export interface LoginRequest {
 export interface AuthResponse {
   token: string;
   user: User;
+}
+
+/**
+ * Request body for `PATCH /api/users/me`. All fields optional (partial update).
+ * `title`/`bio` accept `null` to clear; `socialLinks` replaces the whole set.
+ */
+export interface UpdateProfileRequest {
+  name?: string;
+  title?: string | null;
+  bio?: string | null;
+  socialLinks?: SocialLinks;
+}
+
+/**
+ * Request body for `POST /api/users/me/avatar`. The image is sent as a data URL
+ * (`data:image/png;base64,…`) read from a local file, keeping the upload as a
+ * plain JSON request. The server validates the MIME type (jpg/png/webp) and the
+ * decoded size (≤ 2 MB).
+ */
+export interface UploadAvatarRequest {
+  /** A `data:image/<type>;base64,<payload>` string. */
+  data: string;
 }
 
 /** A workspace member with the member's safe user profile attached. */

@@ -9,7 +9,7 @@ function makeMember(userId: string, name: string): WorkspaceMemberWithUser {
     userId,
     role: 'MEMBER',
     createdAt: '',
-    user: { id: userId, email: `${name.toLowerCase()}@example.com`, name, avatarUrl: null, createdAt: '', updatedAt: '' },
+    user: { id: userId, email: `${name.toLowerCase()}@example.com`, name, avatarUrl: null, title: null, bio: null, socialLinks: {}, createdAt: '', updatedAt: '' },
   };
 }
 

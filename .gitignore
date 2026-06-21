@@ -15,6 +15,10 @@ build/
 *.db-journal
 *.sqlite
 
+# User-uploaded files (avatars, etc.) — runtime data, not source
+uploads/
+server/uploads/
+
 # Logs
 *.log
 npm-debug.log*
