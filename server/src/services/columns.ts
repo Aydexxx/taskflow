@@ -3,7 +3,7 @@ import type { Column } from '@taskflow/shared';
 import type { CreateColumnInput, UpdateColumnInput } from '../validation/column.schemas';
 import { prisma } from './prisma';
 import { computeInsertPosition } from './positioning';
-import { requireWorkspaceMember, resolveBoardWorkspaceId, resolveColumnContext } from './authorization';
+import { requireWorkspaceRole, resolveBoardWorkspaceId, resolveColumnContext } from './authorization';
 import { boardBus } from '../events/boardBus';
 import { recordActivity } from './activity';
 
@@ -20,7 +20,7 @@ export function toColumn(column: PrismaColumn): Column {
 
 export async function createColumn(boardId: string, userId: string, input: CreateColumnInput): Promise<Column> {
   const workspaceId = await resolveBoardWorkspaceId(boardId);
-  await requireWorkspaceMember(workspaceId, userId);
+  await requireWorkspaceRole(workspaceId, userId, 'MEMBER');
 
   const column = await prisma.$transaction(async (tx) => {
     const siblings = await tx.column.findMany({ where: { boardId }, orderBy: { position: 'asc' } });
@@ -35,7 +35,7 @@ export async function createColumn(boardId: string, userId: string, input: Creat
 
 export async function updateColumn(columnId: string, userId: string, input: UpdateColumnInput): Promise<Column> {
   const { boardId, workspaceId } = await resolveColumnContext(columnId);
-  await requireWorkspaceMember(workspaceId, userId);
+  await requireWorkspaceRole(workspaceId, userId, 'MEMBER');
 
   const column = await prisma.$transaction(async (tx) => {
     const data: { title?: string; position?: number } = { title: input.title };
@@ -57,7 +57,7 @@ export async function updateColumn(columnId: string, userId: string, input: Upda
 
 export async function deleteColumn(columnId: string, userId: string): Promise<void> {
   const { boardId, workspaceId } = await resolveColumnContext(columnId);
-  await requireWorkspaceMember(workspaceId, userId);
+  await requireWorkspaceRole(workspaceId, userId, 'MEMBER');
   const column = await prisma.column.findUniqueOrThrow({ where: { id: columnId }, select: { title: true } });
   await prisma.column.delete({ where: { id: columnId } });
   boardBus.publish('column:deleted', { boardId, actorId: userId, columnId });

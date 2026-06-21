@@ -3,10 +3,11 @@ import type { Card, CardPriority, Label, LabelColor } from '@taskflow/shared';
 import type { CreateCardInput, MoveCardInput, UpdateCardInput } from '../validation/card.schemas';
 import { prisma } from './prisma';
 import { computeInsertPosition } from './positioning';
-import { getMembership, requireWorkspaceMember, resolveCardContext, resolveColumnContext } from './authorization';
+import { getMembership, requireWorkspaceRole, resolveCardContext, resolveColumnContext } from './authorization';
 import { ValidationError } from '../errors/HttpError';
 import { boardBus } from '../events/boardBus';
 import { recordActivity } from './activity';
+import { createNotification } from './notifications';
 
 const CARD_INCLUDE = { labels: { include: { label: true } } } as const;
 
@@ -55,7 +56,7 @@ export async function publishCardUpdated(boardId: string, actorId: string, cardI
 
 export async function createCard(columnId: string, userId: string, input: CreateCardInput): Promise<Card> {
   const { boardId, workspaceId } = await resolveColumnContext(columnId);
-  await requireWorkspaceMember(workspaceId, userId);
+  await requireWorkspaceRole(workspaceId, userId, 'MEMBER');
   if (input.assigneeId) await assertAssigneeIsMember(workspaceId, input.assigneeId);
 
   const card = await prisma.$transaction(async (tx) => {
@@ -77,12 +78,21 @@ export async function createCard(columnId: string, userId: string, input: Create
   const result = toCard(card);
   boardBus.publish('card:created', { boardId, actorId: userId, card: result });
   await recordActivity(boardId, userId, 'card_created', { cardId: result.id, cardTitle: result.title });
+  if (result.assigneeId) {
+    await createNotification({
+      userId: result.assigneeId,
+      actorId: userId,
+      boardId,
+      type: 'assignment',
+      metadata: { cardId: result.id, cardTitle: result.title },
+    });
+  }
   return result;
 }
 
 export async function updateCard(cardId: string, userId: string, input: UpdateCardInput): Promise<Card> {
   const { boardId, workspaceId } = await resolveCardContext(cardId);
-  await requireWorkspaceMember(workspaceId, userId);
+  await requireWorkspaceRole(workspaceId, userId, 'MEMBER');
   if (input.assigneeId) await assertAssigneeIsMember(workspaceId, input.assigneeId);
 
   const existing = await prisma.card.findUniqueOrThrow({ where: { id: cardId }, select: { assigneeId: true } });
@@ -107,6 +117,13 @@ export async function updateCard(cardId: string, userId: string, input: UpdateCa
         cardTitle: result.title,
         assigneeName: assignee?.name,
       });
+      await createNotification({
+        userId: input.assigneeId,
+        actorId: userId,
+        boardId,
+        type: 'assignment',
+        metadata: { cardId: result.id, cardTitle: result.title },
+      });
     } else {
       await recordActivity(boardId, userId, 'card_unassigned', { cardId: result.id, cardTitle: result.title });
     }
@@ -117,7 +134,7 @@ export async function updateCard(cardId: string, userId: string, input: UpdateCa
 
 export async function moveCard(cardId: string, userId: string, input: MoveCardInput): Promise<Card> {
   const { columnId: sourceColumnId, boardId: sourceBoardId, workspaceId } = await resolveCardContext(cardId);
-  await requireWorkspaceMember(workspaceId, userId);
+  await requireWorkspaceRole(workspaceId, userId, 'MEMBER');
 
   const destination = await resolveColumnContext(input.columnId);
   if (destination.workspaceId !== workspaceId) {
@@ -171,7 +188,7 @@ export async function moveCard(cardId: string, userId: string, input: MoveCardIn
 
 export async function deleteCard(cardId: string, userId: string): Promise<void> {
   const { columnId, boardId, workspaceId } = await resolveCardContext(cardId);
-  await requireWorkspaceMember(workspaceId, userId);
+  await requireWorkspaceRole(workspaceId, userId, 'MEMBER');
   const card = await prisma.card.findUniqueOrThrow({ where: { id: cardId }, select: { title: true } });
   await prisma.card.delete({ where: { id: cardId } });
   boardBus.publish('card:deleted', { boardId, actorId: userId, cardId, columnId });

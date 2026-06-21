@@ -31,6 +31,7 @@ const DEMO_USERS = [
   { name: 'Alice Johnson', email: 'alice@taskflow.dev' },
   { name: 'Bob Lee', email: 'bob@taskflow.dev' },
   { name: 'Carol Diaz', email: 'carol@taskflow.dev' },
+  { name: 'Erin Park', email: 'erin@taskflow.dev' },
 ] as const;
 
 /** A date `days` from now (negative = in the past), as an ISO string. */
@@ -56,15 +57,18 @@ async function main(): Promise<void> {
   const users = await Promise.all(
     DEMO_USERS.map((user) => prisma.user.create({ data: { ...user, passwordHash } })),
   );
-  const [alice, bob, carol] = users;
-  if (!alice || !bob || !carol) throw new Error('Failed to create demo users');
+  const [alice, bob, carol, erin] = users;
+  if (!alice || !bob || !carol || !erin) throw new Error('Failed to create demo users');
   console.log(`   • ${users.length} users`);
 
   // --- Workspace + members ---------------------------------------------------
+  // One of each role, so the seeded workspace is ready to manually exercise the
+  // whole permission matrix: Alice=OWNER, Bob=ADMIN, Carol=MEMBER, Erin=VIEWER.
   const workspace = await createWorkspace(alice.id, { name: 'Acme Product' });
-  await addMember(workspace.id, alice.id, { email: bob.email });
+  await addMember(workspace.id, alice.id, { email: bob.email, role: 'ADMIN' });
   await addMember(workspace.id, alice.id, { email: carol.email });
-  console.log(`   • workspace "${workspace.name}" with 3 members`);
+  await addMember(workspace.id, alice.id, { email: erin.email, role: 'VIEWER' });
+  console.log(`   • workspace "${workspace.name}" with 4 members`);
 
   // --- Labels ----------------------------------------------------------------
   const labelSpecs: Array<{ name: string; color: LabelColor }> = [

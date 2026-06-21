@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import type {
   Card,
   CardPriority,
@@ -18,6 +18,9 @@ import { TrashIcon, XIcon } from '../icons';
 import { Button, FieldLabel, Input, Modal, Select, Spinner, Textarea } from '../ui';
 import { labelChipClass, labelSwatchClass } from '../../lib/board/labelColors';
 import { PRIORITY_LABELS } from '../../lib/board/priority';
+import { applyMention, findMentionQuery, matchMembers, type MentionQuery } from '../../lib/board/mentionAutocomplete';
+import { MentionSuggestions } from './MentionSuggestions';
+import { CommentBody } from './CommentBody';
 
 export interface CardFormValues {
   title: string;
@@ -92,6 +95,49 @@ export function CardModal({
   const [isPostingComment, setIsPostingComment] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+
+  // @mention autocomplete for the comment input: an in-progress "@query" (if
+  // any) immediately before the caret, re-derived on every change/click/key
+  // so it tracks the caret rather than just the latest keystroke.
+  const commentInputRef = useRef<HTMLInputElement>(null);
+  const [mentionQuery, setMentionQuery] = useState<MentionQuery | null>(null);
+  const [mentionActiveIndex, setMentionActiveIndex] = useState(0);
+  const mentionMatches = mentionQuery ? matchMembers(members, mentionQuery.query) : [];
+
+  function updateMentionQuery(value: string, selectionStart: number | null): void {
+    setMentionQuery(findMentionQuery(value, selectionStart ?? value.length));
+    setMentionActiveIndex(0);
+  }
+
+  function selectMention(member: WorkspaceMemberWithUser): void {
+    if (!mentionQuery) return;
+    const cursor = mentionQuery.start + 1 + mentionQuery.query.length;
+    const { text, cursor: nextCursor } = applyMention(newComment, mentionQuery.start, cursor, member);
+    setNewComment(text);
+    setMentionQuery(null);
+    // The input's DOM value updates on the next render; restore the caret
+    // just after the inserted mention once that happens.
+    requestAnimationFrame(() => {
+      commentInputRef.current?.setSelectionRange(nextCursor, nextCursor);
+      commentInputRef.current?.focus();
+    });
+  }
+
+  function handleCommentKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+    if (!mentionQuery || mentionMatches.length === 0) return;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setMentionActiveIndex((current) => (current + 1) % mentionMatches.length);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setMentionActiveIndex((current) => (current - 1 + mentionMatches.length) % mentionMatches.length);
+    } else if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault();
+      selectMention(mentionMatches[mentionActiveIndex] as WorkspaceMemberWithUser);
+    } else if (event.key === 'Escape') {
+      setMentionQuery(null);
+    }
+  }
 
   useEffect(() => {
     if (!card) return undefined;
@@ -213,6 +259,7 @@ export function CardModal({
       const comment = await api.cards.addComment(card.id, { body });
       setComments((current) => (current.some((c) => c.id === comment.id) ? current : [...current, comment]));
       setNewComment('');
+      setMentionQuery(null);
     } catch (err) {
       setCommentError(err instanceof ApiRequestError ? err.message : 'Failed to add comment');
     } finally {
@@ -437,7 +484,7 @@ export function CardModal({
                       {new Date(comment.createdAt).toLocaleString()}
                     </span>
                   </div>
-                  <p className="whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">{comment.body}</p>
+                  <CommentBody body={comment.body} workspaceId={workspaceId} />
                 </div>
                 {comment.authorId === user?.id && (
                   <button
@@ -453,11 +500,20 @@ export function CardModal({
               </div>
             ))}
           </div>
-          <form onSubmit={handleAddComment} className="mt-3 flex gap-2">
+          <form onSubmit={handleAddComment} className="relative mt-3 flex gap-2">
+            {mentionQuery && (
+              <MentionSuggestions members={mentionMatches} activeIndex={mentionActiveIndex} onSelect={selectMention} />
+            )}
             <Input
+              ref={commentInputRef}
               value={newComment}
-              onChange={(event) => setNewComment(event.target.value)}
-              placeholder="Write a comment…"
+              onChange={(event) => {
+                setNewComment(event.target.value);
+                updateMentionQuery(event.target.value, event.target.selectionStart);
+              }}
+              onKeyDown={handleCommentKeyDown}
+              onClick={(event) => updateMentionQuery(newComment, event.currentTarget.selectionStart)}
+              placeholder="Write a comment… (type @ to mention someone)"
               aria-label="New comment"
               className="flex-1 py-1.5"
             />

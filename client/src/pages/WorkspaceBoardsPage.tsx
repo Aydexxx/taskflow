@@ -1,28 +1,42 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { Board, Workspace } from '@taskflow/shared';
+import type { Board, Workspace, WorkspaceMemberWithUser } from '@taskflow/shared';
+import { roleAtLeast } from '@taskflow/shared';
 import { api, ApiRequestError } from '../lib/api';
+import { useAuth } from '../context/AuthContext';
 import { AppHeader } from '../components/AppHeader';
 import { TrashIcon } from '../components/icons';
 import { Button, EmptyState, Input, Spinner } from '../components/ui';
+import { myRole as deriveMyRole } from '../lib/workspaceRole';
 
 export function WorkspaceBoardsPage(): JSX.Element {
   const { workspaceId } = useParams<{ workspaceId: string }>();
+  const { user } = useAuth();
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [boards, setBoards] = useState<Board[] | null>(null);
+  const [members, setMembers] = useState<WorkspaceMemberWithUser[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
+  const myRoleValue = useMemo(() => deriveMyRole(members, user?.id), [members, user?.id]);
+  const canCreateBoards = myRoleValue !== null && roleAtLeast(myRoleValue, 'MEMBER');
+  const canDeleteBoards = myRoleValue !== null && roleAtLeast(myRoleValue, 'ADMIN');
+
   useEffect(() => {
     if (!workspaceId) return;
     let cancelled = false;
-    Promise.all([api.workspaces.get(workspaceId), api.boards.listForWorkspace(workspaceId)])
-      .then(([loadedWorkspace, loadedBoards]) => {
+    Promise.all([
+      api.workspaces.get(workspaceId),
+      api.boards.listForWorkspace(workspaceId),
+      api.workspaces.listMembers(workspaceId),
+    ])
+      .then(([loadedWorkspace, loadedBoards, loadedMembers]) => {
         if (cancelled) return;
         setWorkspace(loadedWorkspace);
         setBoards(loadedBoards);
+        setMembers(loadedMembers);
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -63,20 +77,35 @@ export function WorkspaceBoardsPage(): JSX.Element {
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
-      <AppHeader title={workspace?.name ?? 'Boards'} backTo={{ to: '/', label: 'Workspaces' }} />
+      <AppHeader
+        title={workspace?.name ?? 'Boards'}
+        backTo={{ to: '/', label: 'Workspaces' }}
+        actions={
+          workspaceId && (
+            <Link
+              to={`/workspaces/${workspaceId}/members`}
+              className="text-sm text-indigo-600 hover:underline dark:text-indigo-400"
+            >
+              Members
+            </Link>
+          )
+        }
+      />
       <main className="mx-auto max-w-4xl px-6 py-8">
-        <form onSubmit={handleCreate} className="mb-8 flex gap-3">
-          <Input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="New board title"
-            aria-label="New board title"
-            className="flex-1"
-          />
-          <Button type="submit" isLoading={isCreating} disabled={!title.trim()}>
-            {isCreating ? 'Creating…' : 'Create board'}
-          </Button>
-        </form>
+        {canCreateBoards && (
+          <form onSubmit={handleCreate} className="mb-8 flex gap-3">
+            <Input
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="New board title"
+              aria-label="New board title"
+              className="flex-1"
+            />
+            <Button type="submit" isLoading={isCreating} disabled={!title.trim()}>
+              {isCreating ? 'Creating…' : 'Create board'}
+            </Button>
+          </form>
+        )}
         {createError && <p className="mb-4 text-sm text-red-600 dark:text-red-400">{createError}</p>}
 
         {boards === null && !loadError && (
@@ -102,14 +131,16 @@ export function WorkspaceBoardsPage(): JSX.Element {
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{board.description}</p>
                 )}
               </Link>
-              <button
-                type="button"
-                onClick={() => handleDelete(board)}
-                aria-label={`Delete ${board.title}`}
-                className="absolute right-3 top-3 rounded-md p-1 text-slate-400 opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 dark:hover:bg-red-500/10 dark:hover:text-red-400"
-              >
-                <TrashIcon />
-              </button>
+              {canDeleteBoards && (
+                <button
+                  type="button"
+                  onClick={() => handleDelete(board)}
+                  aria-label={`Delete ${board.title}`}
+                  className="absolute right-3 top-3 rounded-md p-1 text-slate-400 opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+                >
+                  <TrashIcon />
+                </button>
+              )}
             </li>
           ))}
         </ul>

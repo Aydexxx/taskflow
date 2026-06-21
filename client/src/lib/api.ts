@@ -19,10 +19,13 @@ import type {
   Label,
   LoginRequest,
   MoveCardRequest,
+  NotificationWithActor,
   RegisterRequest,
+  TransferOwnershipRequest,
   UpdateBoardRequest,
   UpdateCardRequest,
   UpdateColumnRequest,
+  UpdateWorkspaceMemberRoleRequest,
   UpdateWorkspaceRequest,
   User,
   Workspace,
@@ -120,6 +123,25 @@ export const api = {
         body: JSON.stringify(input),
       }),
 
+    updateMemberRole: (
+      workspaceId: string,
+      memberId: string,
+      input: UpdateWorkspaceMemberRoleRequest,
+    ): Promise<WorkspaceMemberWithUser> =>
+      request<WorkspaceMemberWithUser>(`/api/workspaces/${workspaceId}/members/${memberId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+      }),
+
+    removeMember: (workspaceId: string, memberId: string): Promise<void> =>
+      request<void>(`/api/workspaces/${workspaceId}/members/${memberId}`, { method: 'DELETE' }),
+
+    transferOwnership: (workspaceId: string, input: TransferOwnershipRequest): Promise<void> =>
+      request<void>(`/api/workspaces/${workspaceId}/transfer-ownership`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+
     listLabels: (workspaceId: string): Promise<Label[]> =>
       request<Label[]>(`/api/workspaces/${workspaceId}/labels`),
 
@@ -203,5 +225,14 @@ export const api = {
 
     deleteComment: (commentId: string): Promise<void> =>
       request<void>(`/api/comments/${commentId}`, { method: 'DELETE' }),
+  },
+
+  notifications: {
+    list: (): Promise<NotificationWithActor[]> => request<NotificationWithActor[]>('/api/notifications'),
+
+    markRead: (notificationId: string): Promise<NotificationWithActor> =>
+      request<NotificationWithActor>(`/api/notifications/${notificationId}/read`, { method: 'PATCH' }),
+
+    markAllRead: (): Promise<void> => request<void>('/api/notifications/read-all', { method: 'POST' }),
   },
 };

@@ -5,7 +5,8 @@
  * realtime channel is checked at compile time end to end.
  */
 
-import type { ActivityWithActor, Card, Column, CommentWithAuthor } from './models';
+import type { ActivityWithActor, Card, Column, CommentWithAuthor, NotificationWithActor } from './models';
+import type { WorkspaceMemberWithUser } from './api';
 
 /** Canonical event name constants (avoid magic strings on either side). */
 export const SOCKET_EVENTS = {
@@ -30,11 +31,36 @@ export const SOCKET_EVENTS = {
   ACTIVITY_CREATED: 'board:activity:created',
   // Presence (server -> room).
   PRESENCE_SYNC: 'board:presence:sync',
+  // Workspace room membership (client -> server).
+  WORKSPACE_JOIN: 'workspace:join',
+  WORKSPACE_LEAVE: 'workspace:leave',
+  // Membership/role change broadcasts (server -> room).
+  WORKSPACE_MEMBER_ADDED: 'workspace:member:added',
+  WORKSPACE_MEMBER_UPDATED: 'workspace:member:updated',
+  WORKSPACE_MEMBER_REMOVED: 'workspace:member:removed',
+  // Notifications (server -> the recipient's personal room only).
+  NOTIFICATION_CREATED: 'notification:created',
 } as const;
 
 /** The Socket.IO room a board's collaborators share. Used identically on both ends. */
 export function boardRoom(boardId: string): string {
   return `board:${boardId}`;
+}
+
+/** The Socket.IO room a workspace's members share, for membership/role broadcasts. */
+export function workspaceRoom(workspaceId: string): string {
+  return `workspace:${workspaceId}`;
+}
+
+/**
+ * The Socket.IO room private to one user, used for notification delivery.
+ * Every authenticated socket joins its own user room automatically on
+ * connect (see `createSocketServer`) — there is no client-initiated join,
+ * since a user always wants their own notifications regardless of which
+ * board/workspace (if any) they currently have open.
+ */
+export function userRoom(userId: string): string {
+  return `user:${userId}`;
 }
 
 /** Payload the client sends with a "ping". */
@@ -109,6 +135,27 @@ export interface ActivityCreatedEvent extends BoardEventBase {
   activity: ActivityWithActor;
 }
 
+/** Common fields on every workspace membership broadcast. */
+export interface WorkspaceEventBase {
+  workspaceId: string;
+  actorId: string;
+}
+
+/** A member was added or had their role changed; carries the full member-with-user view. */
+export interface WorkspaceMemberEvent extends WorkspaceEventBase {
+  member: WorkspaceMemberWithUser;
+}
+
+/** A member was removed from the workspace. */
+export interface WorkspaceMemberRemovedEvent extends WorkspaceEventBase {
+  userId: string;
+}
+
+/** A notification was created for the recipient currently subscribed to this event (their own user room). */
+export interface NotificationCreatedEvent {
+  notification: NotificationWithActor;
+}
+
 /** A collaborator currently viewing a board (de-duplicated by user for display). */
 export interface PresenceUser {
   userId: string;
@@ -143,6 +190,19 @@ export interface PresenceEditingPayload {
 /** Acknowledgement returned to the client after a `board:join` attempt. */
 export type BoardJoinResult = { ok: true } | { ok: false; error: string };
 
+/** Client -> server: request to join a workspace room (server authorizes membership). */
+export interface WorkspaceJoinPayload {
+  workspaceId: string;
+}
+
+/** Client -> server: leave a workspace room. */
+export interface WorkspaceLeavePayload {
+  workspaceId: string;
+}
+
+/** Acknowledgement returned to the client after a `workspace:join` attempt. */
+export type WorkspaceJoinResult = { ok: true } | { ok: false; error: string };
+
 /** Events the server emits to clients. */
 export interface ServerToClientEvents {
   pong: (payload: PongPayload) => void;
@@ -157,6 +217,10 @@ export interface ServerToClientEvents {
   'board:comment:deleted': (payload: CommentDeletedEvent) => void;
   'board:activity:created': (payload: ActivityCreatedEvent) => void;
   'board:presence:sync': (payload: PresenceSyncEvent) => void;
+  'workspace:member:added': (payload: WorkspaceMemberEvent) => void;
+  'workspace:member:updated': (payload: WorkspaceMemberEvent) => void;
+  'workspace:member:removed': (payload: WorkspaceMemberRemovedEvent) => void;
+  'notification:created': (payload: NotificationCreatedEvent) => void;
 }
 
 /** Events clients emit to the server. */
@@ -165,6 +229,8 @@ export interface ClientToServerEvents {
   'board:join': (payload: BoardJoinPayload, ack: (result: BoardJoinResult) => void) => void;
   'board:leave': (payload: BoardLeavePayload) => void;
   'board:presence:editing': (payload: PresenceEditingPayload) => void;
+  'workspace:join': (payload: WorkspaceJoinPayload, ack: (result: WorkspaceJoinResult) => void) => void;
+  'workspace:leave': (payload: WorkspaceLeavePayload) => void;
 }
 
 /** Server-to-server events (unused for now; reserved for scaling/adapters). */

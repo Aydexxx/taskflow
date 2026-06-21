@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Avatar } from './Avatar';
+import { NotificationBell } from './NotificationBell';
 import { ThemeToggle } from './ThemeToggle';
 import { Button } from './ui';
 
@@ -31,6 +32,7 @@ export function AppHeader({ title, backTo, actions }: AppHeaderProps): JSX.Eleme
       </div>
       <div className="flex items-center gap-3">
         {actions}
+        <NotificationBell />
         <ThemeToggle />
         <div className="hidden items-center gap-2 sm:flex">
           {user && <Avatar name={user.name} />}

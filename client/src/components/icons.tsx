@@ -70,3 +70,12 @@ export function MoonIcon({ className = 'h-4 w-4' }: IconProps): JSX.Element {
     </svg>
   );
 }
+
+export function BellIcon({ className = 'h-4 w-4' }: IconProps): JSX.Element {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden="true">
+      <path d="M10 2a4 4 0 0 0-4 4v2.2c0 .6-.2 1.2-.6 1.7L4 11.8c-.7.9-.1 2.2 1 2.2h10c1.1 0 1.7-1.3 1-2.2l-1.4-1.9a2.7 2.7 0 0 1-.6-1.7V6a4 4 0 0 0-4-4Z" />
+      <path d="M8.2 16a1.8 1.8 0 0 0 3.6 0H8.2Z" />
+    </svg>
+  );
+}

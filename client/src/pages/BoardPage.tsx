@@ -42,6 +42,21 @@ export function BoardPage(): JSX.Element {
     [setSearchParams],
   );
 
+  // A notification's "click navigates to the relevant card" link arrives as
+  // `?card=<id>`; once KanbanBoard has opened it, drop the param so a reload
+  // doesn't keep reopening it.
+  const openCardId = searchParams.get('card') ?? undefined;
+  const handleOpenCardHandled = useCallback(() => {
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.delete('card');
+        return next;
+      },
+      { replace: true },
+    );
+  }, [setSearchParams]);
+
   useEffect(() => {
     if (!boardId) return;
     let cancelled = false;
@@ -312,6 +327,8 @@ export function BoardPage(): JSX.Element {
               members={members}
               workspaceId={workspaceId}
               filters={filters}
+              openCardId={openCardId}
+              onOpenCardHandled={handleOpenCardHandled}
               editingByCard={editingByCard}
               onEditingChange={announceEditing}
               onColumnsChange={handleColumnsChange}

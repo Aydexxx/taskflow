@@ -1,11 +1,17 @@
 import type { Workspace as PrismaWorkspace, WorkspaceMember as PrismaWorkspaceMember } from '@prisma/client';
 import type { User as PrismaUser } from '@prisma/client';
-import type { AddMemberInput, CreateWorkspaceInput, UpdateWorkspaceInput } from '../validation/workspace.schemas';
-import type { Workspace, WorkspaceMemberWithUser } from '@taskflow/shared';
+import type {
+  AddMemberInput,
+  CreateWorkspaceInput,
+  UpdateMemberRoleInput,
+  UpdateWorkspaceInput,
+} from '../validation/workspace.schemas';
+import type { Workspace, WorkspaceMemberWithUser, WorkspaceRole } from '@taskflow/shared';
 import { prisma } from './prisma';
 import { toSafeUser } from './users';
-import { requireWorkspaceMember, requireWorkspaceRole } from './authorization';
-import { ConflictError, NotFoundError } from '../errors/HttpError';
+import { assertCanGrantRole, assertCanManageMember, requireWorkspaceMember, requireWorkspaceRole } from './authorization';
+import { ConflictError, ForbiddenError, NotFoundError } from '../errors/HttpError';
+import { workspaceBus } from '../events/workspaceBus';
 
 export function toWorkspace(workspace: PrismaWorkspace): Workspace {
   return {
@@ -83,7 +89,7 @@ export async function updateWorkspace(
   userId: string,
   input: UpdateWorkspaceInput,
 ): Promise<Workspace> {
-  await requireWorkspaceRole(workspaceId, userId, ['OWNER']);
+  await requireWorkspaceRole(workspaceId, userId, 'OWNER');
   const workspace = await prisma.workspace.update({
     where: { id: workspaceId },
     data: { name: input.name },
@@ -92,7 +98,7 @@ export async function updateWorkspace(
 }
 
 export async function deleteWorkspace(workspaceId: string, userId: string): Promise<void> {
-  await requireWorkspaceRole(workspaceId, userId, ['OWNER']);
+  await requireWorkspaceRole(workspaceId, userId, 'OWNER');
   await prisma.workspace.delete({ where: { id: workspaceId } });
 }
 
@@ -106,12 +112,24 @@ export async function listMembers(workspaceId: string, userId: string): Promise<
   return members.map(toWorkspaceMember);
 }
 
+/** Loads a workspace member by its own id, scoped to `workspaceId`. Throws `NotFoundError` if it doesn't belong there. */
+async function requireMemberInWorkspace(
+  workspaceId: string,
+  memberId: string,
+): Promise<PrismaWorkspaceMember> {
+  const member = await prisma.workspaceMember.findUnique({ where: { id: memberId } });
+  if (!member || member.workspaceId !== workspaceId) throw new NotFoundError('Member not found');
+  return member;
+}
+
 export async function addMember(
   workspaceId: string,
   userId: string,
   input: AddMemberInput,
 ): Promise<WorkspaceMemberWithUser> {
-  await requireWorkspaceRole(workspaceId, userId, ['OWNER', 'ADMIN']);
+  const actor = await requireWorkspaceRole(workspaceId, userId, 'ADMIN');
+  const role = input.role ?? 'MEMBER';
+  assertCanGrantRole(actor.role as WorkspaceRole, role);
 
   const targetUser = await prisma.user.findUnique({ where: { email: input.email } });
   if (!targetUser) throw new NotFoundError('No user found with that email');
@@ -122,8 +140,60 @@ export async function addMember(
   if (existing) throw new ConflictError('User is already a member of this workspace');
 
   const member = await prisma.workspaceMember.create({
-    data: { workspaceId, userId: targetUser.id, role: input.role ?? 'MEMBER' },
+    data: { workspaceId, userId: targetUser.id, role },
     include: { user: true },
   });
-  return toWorkspaceMember(member);
+  const result = toWorkspaceMember(member);
+  workspaceBus.publish('member:added', { workspaceId, actorId: userId, member: result });
+  return result;
+}
+
+export async function updateMemberRole(
+  workspaceId: string,
+  userId: string,
+  memberId: string,
+  input: UpdateMemberRoleInput,
+): Promise<WorkspaceMemberWithUser> {
+  const actor = await requireWorkspaceRole(workspaceId, userId, 'ADMIN');
+  const target = await requireMemberInWorkspace(workspaceId, memberId);
+  if (target.userId === userId) throw new ForbiddenError('You cannot change your own role');
+  assertCanManageMember(actor.role as WorkspaceRole, target.role as WorkspaceRole);
+  assertCanGrantRole(actor.role as WorkspaceRole, input.role);
+
+  const member = await prisma.workspaceMember.update({
+    where: { id: memberId },
+    data: { role: input.role },
+    include: { user: true },
+  });
+  const result = toWorkspaceMember(member);
+  workspaceBus.publish('member:updated', { workspaceId, actorId: userId, member: result });
+  return result;
+}
+
+export async function removeMember(workspaceId: string, userId: string, memberId: string): Promise<void> {
+  const actor = await requireWorkspaceRole(workspaceId, userId, 'ADMIN');
+  const target = await requireMemberInWorkspace(workspaceId, memberId);
+  if (target.userId === userId) throw new ForbiddenError('You cannot remove yourself from the workspace');
+  assertCanManageMember(actor.role as WorkspaceRole, target.role as WorkspaceRole);
+
+  await prisma.workspaceMember.delete({ where: { id: memberId } });
+  workspaceBus.publish('member:removed', { workspaceId, actorId: userId, userId: target.userId });
+}
+
+export async function transferOwnership(workspaceId: string, userId: string, memberId: string): Promise<void> {
+  await requireWorkspaceRole(workspaceId, userId, 'OWNER');
+  const target = await requireMemberInWorkspace(workspaceId, memberId);
+  if (target.userId === userId) throw new ForbiddenError('You are already the owner');
+
+  const [newOwner, previousOwner] = await prisma.$transaction([
+    prisma.workspaceMember.update({ where: { id: memberId }, data: { role: 'OWNER' }, include: { user: true } }),
+    prisma.workspaceMember.update({
+      where: { workspaceId_userId: { workspaceId, userId } },
+      data: { role: 'ADMIN' },
+      include: { user: true },
+    }),
+    prisma.workspace.update({ where: { id: workspaceId }, data: { ownerId: target.userId } }),
+  ]);
+  workspaceBus.publish('member:updated', { workspaceId, actorId: userId, member: toWorkspaceMember(newOwner) });
+  workspaceBus.publish('member:updated', { workspaceId, actorId: userId, member: toWorkspaceMember(previousOwner) });
 }

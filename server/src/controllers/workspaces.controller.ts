@@ -4,7 +4,13 @@ import { currentUserId } from '../middleware/auth';
 import * as workspaceService from '../services/workspaces';
 import * as boardService from '../services/boards';
 import * as labelService from '../services/labels';
-import type { AddMemberInput, CreateWorkspaceInput, UpdateWorkspaceInput } from '../validation/workspace.schemas';
+import type {
+  AddMemberInput,
+  CreateWorkspaceInput,
+  TransferOwnershipInput,
+  UpdateMemberRoleInput,
+  UpdateWorkspaceInput,
+} from '../validation/workspace.schemas';
 import type { CreateBoardInput } from '../validation/board.schemas';
 import type { CreateLabelInput } from '../validation/label.schemas';
 
@@ -53,6 +59,35 @@ export async function addMember(
 ): Promise<void> {
   const member = await workspaceService.addMember(req.params.workspaceId, currentUserId(req), req.body);
   res.status(201).json(member);
+}
+
+export async function updateMemberRole(
+  req: Request<{ workspaceId: string; memberId: string }, unknown, UpdateMemberRoleInput>,
+  res: Response<WorkspaceMemberWithUser>,
+): Promise<void> {
+  const member = await workspaceService.updateMemberRole(
+    req.params.workspaceId,
+    currentUserId(req),
+    req.params.memberId,
+    req.body,
+  );
+  res.json(member);
+}
+
+export async function removeMember(
+  req: Request<{ workspaceId: string; memberId: string }>,
+  res: Response,
+): Promise<void> {
+  await workspaceService.removeMember(req.params.workspaceId, currentUserId(req), req.params.memberId);
+  res.status(204).end();
+}
+
+export async function transferOwnership(
+  req: Request<{ workspaceId: string }, unknown, TransferOwnershipInput>,
+  res: Response,
+): Promise<void> {
+  await workspaceService.transferOwnership(req.params.workspaceId, currentUserId(req), req.body.memberId);
+  res.status(204).end();
 }
 
 export async function createBoardInWorkspace(

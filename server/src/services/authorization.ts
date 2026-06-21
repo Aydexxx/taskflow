@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient, WorkspaceMember as PrismaWorkspaceMember } from '@prisma/client';
-import type { WorkspaceRole } from '@taskflow/shared';
+import { WORKSPACE_ROLE_RANK, roleAtLeast, type WorkspaceRole } from '@taskflow/shared';
 import { prisma } from './prisma';
 import { ForbiddenError, NotFoundError } from '../errors/HttpError';
 
@@ -25,18 +25,32 @@ export async function requireWorkspaceMember(
   return membership;
 }
 
-/** Throws `ForbiddenError` unless the user's role in the workspace is one of `roles`. */
+/** Throws `ForbiddenError` unless the user's role in the workspace is at least `minRole`. */
 export async function requireWorkspaceRole(
   workspaceId: string,
   userId: string,
-  roles: WorkspaceRole[],
+  minRole: WorkspaceRole,
   db: Db = prisma,
 ): Promise<PrismaWorkspaceMember> {
   const membership = await requireWorkspaceMember(workspaceId, userId, db);
-  if (!roles.includes(membership.role as WorkspaceRole)) {
-    throw new ForbiddenError('You do not have permission to perform this action');
+  if (!roleAtLeast(membership.role as WorkspaceRole, minRole)) {
+    throw new ForbiddenError(`This action requires the ${minRole} role or higher`);
   }
   return membership;
+}
+
+/** Throws `ForbiddenError` if `role` outranks `actingRole` — a user can never grant a role higher than their own. */
+export function assertCanGrantRole(actingRole: WorkspaceRole, role: WorkspaceRole): void {
+  if (WORKSPACE_ROLE_RANK[role] > WORKSPACE_ROLE_RANK[actingRole]) {
+    throw new ForbiddenError('You cannot grant a role higher than your own');
+  }
+}
+
+/** Throws `ForbiddenError` unless `actingRole` strictly outranks `targetRole` — managing a member (changing their role or removing them) requires more privilege than they currently have. This also blocks anyone from managing the OWNER, since no role outranks it. */
+export function assertCanManageMember(actingRole: WorkspaceRole, targetRole: WorkspaceRole): void {
+  if (WORKSPACE_ROLE_RANK[actingRole] <= WORKSPACE_ROLE_RANK[targetRole]) {
+    throw new ForbiddenError('You do not have authority to manage this member');
+  }
 }
 
 /** Resolves the workspace that owns a board, throwing `NotFoundError` if the board doesn't exist. */

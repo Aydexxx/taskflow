@@ -23,11 +23,11 @@ async function createWorkspace(token: string, name = 'Acme Inc') {
   return res.body;
 }
 
-async function addMember(token: string, workspaceId: string, email: string) {
+async function addMember(token: string, workspaceId: string, email: string, role?: string) {
   return request(app)
     .post(`/api/workspaces/${workspaceId}/members`)
     .set('Authorization', `Bearer ${token}`)
-    .send({ email });
+    .send(role ? { email, role } : { email });
 }
 
 async function createBoard(token: string, workspaceId: string, title = 'Sprint Board') {
@@ -165,6 +165,266 @@ describe('Workspaces', () => {
 
     const res = await addMember(outsider.token, workspace.id, 'eve@example.com');
     expect(res.status).toBe(403);
+  });
+
+  it('lets an admin invite a member as a VIEWER', async () => {
+    const owner = await registerUser('Ada', 'ada@example.com');
+    const admin = await registerUser('Bob', 'bob@example.com');
+    await registerUser('Eve', 'eve@example.com');
+    const workspace = await createWorkspace(owner.token);
+    await addMember(owner.token, workspace.id, 'bob@example.com', 'ADMIN');
+
+    const res = await addMember(admin.token, workspace.id, 'eve@example.com', 'VIEWER');
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ role: 'VIEWER' });
+  });
+
+  it('rejects granting a role higher than the inviter\'s own', async () => {
+    const owner = await registerUser('Ada', 'ada@example.com');
+    const member = await registerUser('Bob', 'bob@example.com');
+    await registerUser('Eve', 'eve@example.com');
+    const workspace = await createWorkspace(owner.token);
+    await addMember(owner.token, workspace.id, 'bob@example.com');
+
+    // A plain MEMBER can't even reach the invite endpoint's role check (gated at ADMIN+).
+    const memberInvite = await addMember(member.token, workspace.id, 'eve@example.com', 'ADMIN');
+    expect(memberInvite.status).toBe(403);
+  });
+
+  describe('member role updates', () => {
+    async function setupWorkspace() {
+      const owner = await registerUser('Ada', 'ada@example.com');
+      const admin = await registerUser('Bob', 'bob@example.com');
+      const member = await registerUser('Carol', 'carol@example.com');
+      const workspace = await createWorkspace(owner.token);
+      const adminMember = (await addMember(owner.token, workspace.id, 'bob@example.com', 'ADMIN')).body;
+      const memberMember = (await addMember(owner.token, workspace.id, 'carol@example.com')).body;
+      return { owner, admin, member, workspace, adminMember, memberMember };
+    }
+
+    it('lets an admin promote a member to viewer or admin', async () => {
+      const { admin, workspace, memberMember } = await setupWorkspace();
+
+      const toViewer = await request(app)
+        .patch(`/api/workspaces/${workspace.id}/members/${memberMember.id}`)
+        .set('Authorization', `Bearer ${admin.token}`)
+        .send({ role: 'VIEWER' });
+      expect(toViewer.status).toBe(200);
+      expect(toViewer.body.role).toBe('VIEWER');
+
+      const toAdmin = await request(app)
+        .patch(`/api/workspaces/${workspace.id}/members/${memberMember.id}`)
+        .set('Authorization', `Bearer ${admin.token}`)
+        .send({ role: 'ADMIN' });
+      expect(toAdmin.status).toBe(200);
+      expect(toAdmin.body.role).toBe('ADMIN');
+    });
+
+    it('prevents an admin from granting a role higher than its own', async () => {
+      // Schema-level: OWNER isn't even an acceptable value for this endpoint.
+      const { admin, workspace, memberMember } = await setupWorkspace();
+      const res = await request(app)
+        .patch(`/api/workspaces/${workspace.id}/members/${memberMember.id}`)
+        .set('Authorization', `Bearer ${admin.token}`)
+        .send({ role: 'OWNER' });
+      expect(res.status).toBe(400);
+    });
+
+    it('prevents an admin from changing another admin\'s role, or the owner\'s', async () => {
+      const { owner, admin, workspace } = await setupWorkspace();
+      await registerUser('Dee', 'dee@example.com');
+      const secondAdminMember = (await addMember(owner.token, workspace.id, 'dee@example.com', 'ADMIN')).body;
+
+      const adminOnAdmin = await request(app)
+        .patch(`/api/workspaces/${workspace.id}/members/${secondAdminMember.id}`)
+        .set('Authorization', `Bearer ${admin.token}`)
+        .send({ role: 'MEMBER' });
+      expect(adminOnAdmin.status).toBe(403);
+
+      // The owner's own membership row can't be retargeted through this endpoint either.
+      const ownerMembers = (
+        await request(app).get(`/api/workspaces/${workspace.id}/members`).set('Authorization', `Bearer ${owner.token}`)
+      ).body as Array<{ id: string; userId: string }>;
+      const ownerMember = ownerMembers.find((m) => m.userId === owner.user.id);
+      const adminOnOwner = await request(app)
+        .patch(`/api/workspaces/${workspace.id}/members/${ownerMember?.id}`)
+        .set('Authorization', `Bearer ${admin.token}`)
+        .send({ role: 'MEMBER' });
+      expect(adminOnOwner.status).toBe(403);
+    });
+
+    it('prevents self-role-change', async () => {
+      const { admin, workspace, adminMember } = await setupWorkspace();
+      const res = await request(app)
+        .patch(`/api/workspaces/${workspace.id}/members/${adminMember.id}`)
+        .set('Authorization', `Bearer ${admin.token}`)
+        .send({ role: 'MEMBER' });
+      expect(res.status).toBe(403);
+    });
+
+    it('rejects role updates from below ADMIN', async () => {
+      const { member, workspace, memberMember } = await setupWorkspace();
+      const res = await request(app)
+        .patch(`/api/workspaces/${workspace.id}/members/${memberMember.id}`)
+        .set('Authorization', `Bearer ${member.token}`)
+        .send({ role: 'VIEWER' });
+      expect(res.status).toBe(403);
+    });
+  });
+
+  describe('member removal', () => {
+    it('lets an admin remove a member, but not the owner or another admin', async () => {
+      const owner = await registerUser('Ada', 'ada@example.com');
+      const admin = await registerUser('Bob', 'bob@example.com');
+      await registerUser('Carol', 'carol@example.com');
+      const workspace = await createWorkspace(owner.token);
+      const adminMember = (await addMember(owner.token, workspace.id, 'bob@example.com', 'ADMIN')).body;
+      const memberMember = (await addMember(owner.token, workspace.id, 'carol@example.com')).body;
+
+      const removeMember = await request(app)
+        .delete(`/api/workspaces/${workspace.id}/members/${memberMember.id}`)
+        .set('Authorization', `Bearer ${admin.token}`);
+      expect(removeMember.status).toBe(204);
+
+      const ownerMembers = (
+        await request(app).get(`/api/workspaces/${workspace.id}/members`).set('Authorization', `Bearer ${owner.token}`)
+      ).body as Array<{ id: string; userId: string }>;
+      const ownerMember = ownerMembers.find((m) => m.userId === owner.user.id);
+
+      const removeOwner = await request(app)
+        .delete(`/api/workspaces/${workspace.id}/members/${ownerMember?.id}`)
+        .set('Authorization', `Bearer ${admin.token}`);
+      expect(removeOwner.status).toBe(403);
+
+      const removeAdmin = await request(app)
+        .delete(`/api/workspaces/${workspace.id}/members/${adminMember.id}`)
+        .set('Authorization', `Bearer ${owner.token}`);
+      // The owner CAN remove an admin (strictly outranks it) — sanity-check the positive case.
+      expect(removeAdmin.status).toBe(204);
+    });
+
+    it('rejects self-removal', async () => {
+      const owner = await registerUser('Ada', 'ada@example.com');
+      const admin = await registerUser('Bob', 'bob@example.com');
+      const workspace = await createWorkspace(owner.token);
+      const adminMember = (await addMember(owner.token, workspace.id, 'bob@example.com', 'ADMIN')).body;
+
+      const res = await request(app)
+        .delete(`/api/workspaces/${workspace.id}/members/${adminMember.id}`)
+        .set('Authorization', `Bearer ${admin.token}`);
+      expect(res.status).toBe(403);
+    });
+  });
+
+  describe('ownership transfer', () => {
+    it('lets the owner transfer ownership, demoting itself to admin', async () => {
+      const owner = await registerUser('Ada', 'ada@example.com');
+      const member = await registerUser('Bob', 'bob@example.com');
+      const workspace = await createWorkspace(owner.token);
+      const memberMember = (await addMember(owner.token, workspace.id, 'bob@example.com')).body;
+
+      const res = await request(app)
+        .post(`/api/workspaces/${workspace.id}/transfer-ownership`)
+        .set('Authorization', `Bearer ${owner.token}`)
+        .send({ memberId: memberMember.id });
+      expect(res.status).toBe(204);
+
+      const members = (
+        await request(app).get(`/api/workspaces/${workspace.id}/members`).set('Authorization', `Bearer ${member.token}`)
+      ).body as Array<{ userId: string; role: string }>;
+      expect(members.find((m) => m.userId === member.user.id)?.role).toBe('OWNER');
+      expect(members.find((m) => m.userId === owner.user.id)?.role).toBe('ADMIN');
+
+      const workspaceRes = await request(app)
+        .get(`/api/workspaces/${workspace.id}`)
+        .set('Authorization', `Bearer ${member.token}`);
+      expect(workspaceRes.body.ownerId).toBe(member.user.id);
+    });
+
+    it('rejects ownership transfer from a non-owner', async () => {
+      const owner = await registerUser('Ada', 'ada@example.com');
+      const admin = await registerUser('Bob', 'bob@example.com');
+      const workspace = await createWorkspace(owner.token);
+      const adminMember = (await addMember(owner.token, workspace.id, 'bob@example.com', 'ADMIN')).body;
+
+      const res = await request(app)
+        .post(`/api/workspaces/${workspace.id}/transfer-ownership`)
+        .set('Authorization', `Bearer ${admin.token}`)
+        .send({ memberId: adminMember.id });
+      expect(res.status).toBe(403);
+    });
+  });
+});
+
+describe('Viewer permissions', () => {
+  async function setupBoard() {
+    const owner = await registerUser('Ada', 'ada@example.com');
+    const viewer = await registerUser('Vic', 'vic@example.com');
+    const member = await registerUser('Mia', 'mia@example.com');
+    const workspace = await createWorkspace(owner.token);
+    await addMember(owner.token, workspace.id, 'vic@example.com', 'VIEWER');
+    await addMember(owner.token, workspace.id, 'mia@example.com');
+    const board = await createBoard(owner.token, workspace.id);
+    const column = await createColumn(owner.token, board.id, 'To Do');
+    const card = await createCard(owner.token, column.id, 'Card 1');
+    const label = await createLabel(owner.token, workspace.id, 'Bug', 'red');
+    return { owner, viewer, member, workspace, board, column, card, label };
+  }
+
+  it('reads succeed for a viewer', async () => {
+    const { viewer, workspace, board } = await setupBoard();
+
+    const getBoard = await request(app).get(`/api/boards/${board.id}`).set('Authorization', `Bearer ${viewer.token}`);
+    expect(getBoard.status).toBe(200);
+
+    const listBoards = await request(app)
+      .get(`/api/workspaces/${workspace.id}/boards`)
+      .set('Authorization', `Bearer ${viewer.token}`);
+    expect(listBoards.status).toBe(200);
+
+    const listMembers = await request(app)
+      .get(`/api/workspaces/${workspace.id}/members`)
+      .set('Authorization', `Bearer ${viewer.token}`);
+    expect(listMembers.status).toBe(200);
+  });
+
+  it('rejects every mutation for a viewer with 403', async () => {
+    const { viewer, workspace, board, column, card, label } = await setupBoard();
+
+    const attempts = [
+      () => request(app).post(`/api/workspaces/${workspace.id}/boards`).set('Authorization', `Bearer ${viewer.token}`).send({ title: 'Nope' }),
+      () => request(app).patch(`/api/boards/${board.id}`).set('Authorization', `Bearer ${viewer.token}`).send({ title: 'Nope' }),
+      () => request(app).delete(`/api/boards/${board.id}`).set('Authorization', `Bearer ${viewer.token}`),
+      () => request(app).post(`/api/boards/${board.id}/columns`).set('Authorization', `Bearer ${viewer.token}`).send({ title: 'Nope' }),
+      () => request(app).patch(`/api/columns/${column.id}`).set('Authorization', `Bearer ${viewer.token}`).send({ title: 'Nope' }),
+      () => request(app).delete(`/api/columns/${column.id}`).set('Authorization', `Bearer ${viewer.token}`),
+      () => request(app).post(`/api/columns/${column.id}/cards`).set('Authorization', `Bearer ${viewer.token}`).send({ title: 'Nope' }),
+      () => request(app).patch(`/api/cards/${card.id}`).set('Authorization', `Bearer ${viewer.token}`).send({ title: 'Nope' }),
+      () => request(app).patch(`/api/cards/${card.id}/move`).set('Authorization', `Bearer ${viewer.token}`).send({ columnId: column.id, index: 0 }),
+      () => request(app).delete(`/api/cards/${card.id}`).set('Authorization', `Bearer ${viewer.token}`),
+      () => request(app).post(`/api/cards/${card.id}/comments`).set('Authorization', `Bearer ${viewer.token}`).send({ body: 'Nope' }),
+      () => request(app).post(`/api/cards/${card.id}/labels`).set('Authorization', `Bearer ${viewer.token}`).send({ labelId: label.id }),
+      () => request(app).delete(`/api/cards/${card.id}/labels/${label.id}`).set('Authorization', `Bearer ${viewer.token}`),
+      () => request(app).post(`/api/workspaces/${workspace.id}/labels`).set('Authorization', `Bearer ${viewer.token}`).send({ name: 'Nope', color: 'blue' }),
+    ];
+
+    for (const attempt of attempts) {
+      const res = await attempt();
+      expect(res.status).toBe(403);
+    }
+  });
+
+  it('lets a plain MEMBER edit a board but not delete it', async () => {
+    const { member, board } = await setupBoard();
+
+    const update = await request(app)
+      .patch(`/api/boards/${board.id}`)
+      .set('Authorization', `Bearer ${member.token}`)
+      .send({ title: 'Updated by member' });
+    expect(update.status).toBe(200);
+
+    const del = await request(app).delete(`/api/boards/${board.id}`).set('Authorization', `Bearer ${member.token}`);
+    expect(del.status).toBe(403);
   });
 });
 

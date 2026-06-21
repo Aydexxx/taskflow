@@ -42,6 +42,9 @@ export interface WorkspaceMemberWithUser extends WorkspaceMember {
   user: User;
 }
 
+/** Roles assignable to another member. OWNER is excluded — it only changes via ownership transfer. */
+export type GrantableWorkspaceRole = Exclude<WorkspaceRole, 'OWNER'>;
+
 /** Request body for `POST /api/workspaces`. */
 export interface CreateWorkspaceRequest {
   name: string;
@@ -56,7 +59,18 @@ export interface UpdateWorkspaceRequest {
 export interface AddWorkspaceMemberRequest {
   email: string;
   /** Defaults to "MEMBER". "OWNER" cannot be granted through this endpoint. */
-  role?: WorkspaceRole;
+  role?: GrantableWorkspaceRole;
+}
+
+/** Request body for `PATCH /api/workspaces/:workspaceId/members/:memberId`. */
+export interface UpdateWorkspaceMemberRoleRequest {
+  role: GrantableWorkspaceRole;
+}
+
+/** Request body for `POST /api/workspaces/:workspaceId/transfer-ownership`. */
+export interface TransferOwnershipRequest {
+  /** The `WorkspaceMember.id` of the member who becomes the new owner. */
+  memberId: string;
 }
 
 /** Request body for `POST /api/workspaces/:workspaceId/boards`. */

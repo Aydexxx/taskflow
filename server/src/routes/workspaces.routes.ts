@@ -10,12 +10,21 @@ import {
   listLabelsInWorkspace,
   listMembers,
   listMyWorkspaces,
+  removeMember,
+  transferOwnership,
+  updateMemberRole,
   updateWorkspace,
 } from '../controllers/workspaces.controller';
 import { asyncHandler } from '../middleware/asyncHandler';
 import { requireAuth } from '../middleware/auth';
 import { validateBody } from '../middleware/validate';
-import { addMemberSchema, createWorkspaceSchema, updateWorkspaceSchema } from '../validation/workspace.schemas';
+import {
+  addMemberSchema,
+  createWorkspaceSchema,
+  transferOwnershipSchema,
+  updateMemberRoleSchema,
+  updateWorkspaceSchema,
+} from '../validation/workspace.schemas';
 import { createBoardSchema } from '../validation/board.schemas';
 import { createLabelSchema } from '../validation/label.schemas';
 
@@ -29,6 +38,19 @@ router.delete('/:workspaceId', requireAuth, asyncHandler(deleteWorkspace));
 
 router.get('/:workspaceId/members', requireAuth, asyncHandler(listMembers));
 router.post('/:workspaceId/members', requireAuth, validateBody(addMemberSchema), asyncHandler(addMember));
+router.patch(
+  '/:workspaceId/members/:memberId',
+  requireAuth,
+  validateBody(updateMemberRoleSchema),
+  asyncHandler(updateMemberRole),
+);
+router.delete('/:workspaceId/members/:memberId', requireAuth, asyncHandler(removeMember));
+router.post(
+  '/:workspaceId/transfer-ownership',
+  requireAuth,
+  validateBody(transferOwnershipSchema),
+  asyncHandler(transferOwnership),
+);
 
 router.post('/:workspaceId/boards', requireAuth, validateBody(createBoardSchema), asyncHandler(createBoardInWorkspace));
 router.get('/:workspaceId/boards', requireAuth, asyncHandler(listBoardsInWorkspace));

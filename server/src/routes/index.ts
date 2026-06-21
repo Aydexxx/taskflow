@@ -7,6 +7,7 @@ import columnsRoutes from './columns.routes';
 import cardsRoutes from './cards.routes';
 import labelsRoutes from './labels.routes';
 import commentsRoutes from './comments.routes';
+import notificationsRoutes from './notifications.routes';
 
 /** Root API router; mount additional feature routers here. */
 const api = Router();
@@ -19,5 +20,6 @@ api.use('/columns', columnsRoutes);
 api.use('/cards', cardsRoutes);
 api.use('/labels', labelsRoutes);
 api.use('/comments', commentsRoutes);
+api.use('/notifications', notificationsRoutes);
 
 export default api;

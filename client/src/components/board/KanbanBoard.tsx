@@ -30,6 +30,10 @@ interface KanbanBoardProps {
   workspaceId: string;
   /** Active board search/filter state; defaults to "no filters" so callers that don't filter are unaffected. */
   filters?: BoardFilters;
+  /** Open this card's edit modal once it's present in `columns` (e.g. arriving from a notification's `?card=` link). */
+  openCardId?: string;
+  /** Called once `openCardId` has been consumed, so the caller can clear it (e.g. from the URL). */
+  onOpenCardHandled?: () => void;
   /** cardId -> name of another collaborator currently editing that card. */
   editingByCard?: Map<string, string>;
   /** Announce which card the local user is editing (null when they stop). */
@@ -52,6 +56,8 @@ export function KanbanBoard({
   members,
   workspaceId,
   filters = EMPTY_FILTERS,
+  openCardId,
+  onOpenCardHandled,
   editingByCard,
   onEditingChange,
   onColumnsChange,
@@ -83,6 +89,16 @@ export function KanbanBoard({
   useEffect(() => {
     if (cardModalState?.mode === 'edit' && !openCard) setCardModalState(null);
   }, [cardModalState, openCard]);
+
+  // Arriving from a notification's `?card=` link: open that card as soon as
+  // it shows up in `columns` (it may still be loading on first render).
+  useEffect(() => {
+    if (!openCardId) return;
+    const exists = columns.some((column) => column.cards.some((card) => card.id === openCardId));
+    if (!exists) return;
+    setCardModalState({ mode: 'edit', cardId: openCardId });
+    onOpenCardHandled?.();
+  }, [openCardId, columns, onOpenCardHandled]);
 
   // Broadcast which card the local user is editing while the edit modal is open.
   useEffect(() => {

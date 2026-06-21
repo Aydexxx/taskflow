@@ -10,7 +10,7 @@ import type { CreateBoardInput, UpdateBoardInput } from '../validation/board.sch
 import { prisma } from './prisma';
 import { toCard } from './cards';
 import { toColumn } from './columns';
-import { requireWorkspaceMember, resolveBoardWorkspaceId } from './authorization';
+import { requireWorkspaceMember, requireWorkspaceRole, resolveBoardWorkspaceId } from './authorization';
 import { NotFoundError } from '../errors/HttpError';
 
 export function toBoard(board: PrismaBoard): Board {
@@ -41,7 +41,7 @@ export function toBoardWithChildren(board: BoardWithColumnsAndCards): BoardWithC
 }
 
 export async function createBoard(workspaceId: string, userId: string, input: CreateBoardInput): Promise<Board> {
-  await requireWorkspaceMember(workspaceId, userId);
+  await requireWorkspaceRole(workspaceId, userId, 'MEMBER');
   const board = await prisma.board.create({
     data: { workspaceId, title: input.title, description: input.description },
   });
@@ -78,7 +78,7 @@ export async function getBoardWithChildren(boardId: string, userId: string): Pro
 
 export async function updateBoard(boardId: string, userId: string, input: UpdateBoardInput): Promise<Board> {
   const workspaceId = await resolveBoardWorkspaceId(boardId);
-  await requireWorkspaceMember(workspaceId, userId);
+  await requireWorkspaceRole(workspaceId, userId, 'MEMBER');
 
   const board = await prisma.board.update({
     where: { id: boardId },
@@ -89,6 +89,7 @@ export async function updateBoard(boardId: string, userId: string, input: Update
 
 export async function deleteBoard(boardId: string, userId: string): Promise<void> {
   const workspaceId = await resolveBoardWorkspaceId(boardId);
-  await requireWorkspaceMember(workspaceId, userId);
+  // Deleting a board is an admin-tier action ("manage boards"); creating/editing is open to any member.
+  await requireWorkspaceRole(workspaceId, userId, 'ADMIN');
   await prisma.board.delete({ where: { id: boardId } });
 }

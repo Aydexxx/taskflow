@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import type { InputHTMLAttributes, LabelHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { cn } from './cn';
 
@@ -9,9 +10,13 @@ export function FieldLabel({ className, ...rest }: LabelHTMLAttributes<HTMLLabel
   return <label {...rest} className={cn('block text-sm font-medium text-slate-700 dark:text-slate-300', className)} />;
 }
 
-export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>): JSX.Element {
-  return <input {...rest} className={cn(CONTROL_CLASS, className)} />;
-}
+/** Forwards its ref (e.g. so a caller can read/set selection range for a mention autocomplete). */
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input(
+  { className, ...rest },
+  ref,
+) {
+  return <input ref={ref} {...rest} className={cn(CONTROL_CLASS, className)} />;
+});
 
 export function Textarea({ className, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>): JSX.Element {
   return <textarea {...rest} className={cn(CONTROL_CLASS, className)} />;

@@ -11,10 +11,23 @@
 /** ISO-8601 timestamp string, e.g. "2026-06-19T12:00:00.000Z". */
 export type ISODateString = string;
 
-/** A member's role within a workspace. */
-export type WorkspaceRole = 'OWNER' | 'ADMIN' | 'MEMBER';
+/** A member's role within a workspace, highest to lowest privilege. */
+export type WorkspaceRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
 
-export const WORKSPACE_ROLES: readonly WorkspaceRole[] = ['OWNER', 'ADMIN', 'MEMBER'];
+export const WORKSPACE_ROLES: readonly WorkspaceRole[] = ['OWNER', 'ADMIN', 'MEMBER', 'VIEWER'];
+
+/** Numeric privilege rank per role; higher can do everything a lower rank can. */
+export const WORKSPACE_ROLE_RANK: Record<WorkspaceRole, number> = {
+  OWNER: 3,
+  ADMIN: 2,
+  MEMBER: 1,
+  VIEWER: 0,
+};
+
+/** True when `role` has at least the privilege of `minRole`. The single source of truth for role checks on both server (authorization) and client (UI gating). */
+export function roleAtLeast(role: WorkspaceRole, minRole: WorkspaceRole): boolean {
+  return WORKSPACE_ROLE_RANK[role] >= WORKSPACE_ROLE_RANK[minRole];
+}
 
 /** A card's urgency, lowest to highest. */
 export type CardPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
@@ -62,6 +75,19 @@ export type ActivityType =
   | 'card_commented'
   | 'column_created'
   | 'column_deleted';
+
+export const ACTIVITY_TYPES: readonly ActivityType[] = [
+  'card_created',
+  'card_deleted',
+  'card_moved',
+  'card_assigned',
+  'card_unassigned',
+  'card_label_added',
+  'card_label_removed',
+  'card_commented',
+  'column_created',
+  'column_deleted',
+];
 
 /**
  * Denormalized details captured at the time of the action, so the feed reads
@@ -183,5 +209,38 @@ export interface Activity {
 
 /** An activity entry with the actor's safe user profile attached, for display. */
 export interface ActivityWithActor extends Activity {
+  actor: User;
+}
+
+/** A reason a notification was generated for its recipient. */
+export type NotificationType = 'mention' | 'assignment' | 'comment';
+
+export const NOTIFICATION_TYPES: readonly NotificationType[] = ['mention', 'assignment', 'comment'];
+
+/**
+ * Denormalized details captured at the time the notification was created
+ * (same rationale as `ActivityMetadata`): the feed still reads correctly if
+ * the card is later renamed or deleted.
+ */
+export interface NotificationMetadata {
+  cardId: string;
+  cardTitle: string;
+  commentExcerpt?: string;
+}
+
+/** A notification delivered to one recipient about another user's action. */
+export interface Notification {
+  id: string;
+  userId: string;
+  actorId: string;
+  boardId: string;
+  type: NotificationType;
+  metadata: NotificationMetadata;
+  isRead: boolean;
+  createdAt: ISODateString;
+}
+
+/** A notification with the triggering actor's safe user profile attached, for display. */
+export interface NotificationWithActor extends Notification {
   actor: User;
 }

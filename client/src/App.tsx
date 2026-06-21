@@ -5,6 +5,7 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { WorkspacesPage } from './pages/WorkspacesPage';
 import { WorkspaceBoardsPage } from './pages/WorkspaceBoardsPage';
+import { WorkspaceMembersPage } from './pages/WorkspaceMembersPage';
 import { BoardPage } from './pages/BoardPage';
 
 export default function App(): JSX.Element {
@@ -17,6 +18,7 @@ export default function App(): JSX.Element {
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<WorkspacesPage />} />
             <Route path="/workspaces/:workspaceId" element={<WorkspaceBoardsPage />} />
+            <Route path="/workspaces/:workspaceId/members" element={<WorkspaceMembersPage />} />
             <Route path="/boards/:boardId" element={<BoardPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -3,6 +3,8 @@ import type { Server as HttpServer } from 'node:http';
 import {
   SOCKET_EVENTS,
   boardRoom,
+  userRoom,
+  workspaceRoom,
   type BoardJoinPayload,
   type BoardJoinResult,
   type BoardLeavePayload,
@@ -14,12 +16,17 @@ import {
   type ServerToClientEvents,
   type SocketAuthPayload,
   type SocketData,
+  type WorkspaceJoinPayload,
+  type WorkspaceJoinResult,
+  type WorkspaceLeavePayload,
 } from '@taskflow/shared';
 import { env } from '../config/env';
 import { verifyAccessToken } from '../services/jwt';
 import { prisma } from '../services/prisma';
 import { getMembership, resolveBoardWorkspaceId } from '../services/authorization';
 import { boardBus } from '../events/boardBus';
+import { workspaceBus } from '../events/workspaceBus';
+import { notificationBus } from '../events/notificationBus';
 import { PresenceRegistry } from './presence';
 
 /** Strongly-typed Socket.IO server bound to the shared event contract. */
@@ -82,6 +89,12 @@ export function createSocketServer(httpServer: HttpServer): TypedSocketServer {
     // eslint-disable-next-line no-console
     console.log(`[socket] connected: ${socket.id}`);
 
+    // Every authenticated socket automatically joins its own personal room, so
+    // notifications reach the user regardless of which board/workspace (if
+    // any) they currently have open — no client-initiated join, unlike board
+    // and workspace rooms which require membership authorization.
+    void socket.join(userRoom(socket.data.userId as string));
+
     socket.on(SOCKET_EVENTS.PING, (payload: PingPayload) => {
       const response: PongPayload = {
         message: payload.message ? `pong: ${payload.message}` : 'pong',
@@ -127,6 +140,33 @@ export function createSocketServer(httpServer: HttpServer): TypedSocketServer {
       if (presence.leave(socket.id, boardId)) broadcastPresence(boardId);
     });
 
+    // Join a workspace room — only workspace members are admitted. Used to
+    // receive membership/role-change broadcasts regardless of which board (if
+    // any) the client is currently viewing.
+    socket.on(SOCKET_EVENTS.WORKSPACE_JOIN, async ({ workspaceId }: WorkspaceJoinPayload, ack) => {
+      const respond = (result: WorkspaceJoinResult): void => ack?.(result);
+      const userId = socket.data.userId;
+      if (!userId) {
+        respond({ ok: false, error: 'Not authenticated' });
+        return;
+      }
+      try {
+        const membership = await getMembership(workspaceId, userId);
+        if (!membership) {
+          respond({ ok: false, error: 'You are not a member of this workspace' });
+          return;
+        }
+        await socket.join(workspaceRoom(workspaceId));
+        respond({ ok: true });
+      } catch (error) {
+        respond({ ok: false, error: error instanceof Error ? error.message : 'Failed to join workspace' });
+      }
+    });
+
+    socket.on(SOCKET_EVENTS.WORKSPACE_LEAVE, ({ workspaceId }: WorkspaceLeavePayload) => {
+      void socket.leave(workspaceRoom(workspaceId));
+    });
+
     socket.on(SOCKET_EVENTS.PRESENCE_EDITING, ({ boardId, cardId }: PresenceEditingPayload) => {
       if (presence.setEditing(socket.id, boardId, cardId)) broadcastPresence(boardId);
     });
@@ -139,12 +179,16 @@ export function createSocketServer(httpServer: HttpServer): TypedSocketServer {
   });
 
   // Fan service-layer board mutations out to the matching board room.
-  const unbind = bindBoardBus(io);
+  const unbindBoardBus = bindBoardBus(io);
+  const unbindWorkspaceBus = bindWorkspaceBus(io);
+  const unbindNotificationBus = bindNotificationBus(io);
 
   // Tear down bus subscriptions when the server closes (keeps tests leak-free).
   const close = io.close.bind(io);
   io.close = ((callback?: (err?: Error) => void) => {
-    unbind();
+    unbindBoardBus();
+    unbindWorkspaceBus();
+    unbindNotificationBus();
     return close(callback);
   }) as typeof io.close;
 
@@ -166,4 +210,28 @@ function bindBoardBus(io: TypedSocketServer): () => void {
     boardBus.subscribe('activity:created', (p) => io.to(boardRoom(p.boardId)).emit(SOCKET_EVENTS.ACTIVITY_CREATED, p)),
   ];
   return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
+}
+
+/** Subscribe the socket server to the workspace event bus; returns an unsubscribe. */
+function bindWorkspaceBus(io: TypedSocketServer): () => void {
+  const unsubscribers = [
+    workspaceBus.subscribe('member:added', (p) =>
+      io.to(workspaceRoom(p.workspaceId)).emit(SOCKET_EVENTS.WORKSPACE_MEMBER_ADDED, p),
+    ),
+    workspaceBus.subscribe('member:updated', (p) =>
+      io.to(workspaceRoom(p.workspaceId)).emit(SOCKET_EVENTS.WORKSPACE_MEMBER_UPDATED, p),
+    ),
+    workspaceBus.subscribe('member:removed', (p) =>
+      io.to(workspaceRoom(p.workspaceId)).emit(SOCKET_EVENTS.WORKSPACE_MEMBER_REMOVED, p),
+    ),
+  ];
+  return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
+}
+
+/** Subscribe the socket server to the notification event bus; returns an unsubscribe. */
+function bindNotificationBus(io: TypedSocketServer): () => void {
+  const unsubscribe = notificationBus.subscribe('notification:created', (p) =>
+    io.to(userRoom(p.userId)).emit(SOCKET_EVENTS.NOTIFICATION_CREATED, { notification: p.notification }),
+  );
+  return unsubscribe;
 }

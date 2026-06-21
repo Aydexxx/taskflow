@@ -2,7 +2,7 @@ import type { Label as PrismaLabel } from '@prisma/client';
 import type { Card, Label, LabelColor } from '@taskflow/shared';
 import type { CreateLabelInput } from '../validation/label.schemas';
 import { prisma } from './prisma';
-import { requireWorkspaceMember, resolveCardContext } from './authorization';
+import { requireWorkspaceMember, requireWorkspaceRole, resolveCardContext } from './authorization';
 import { NotFoundError } from '../errors/HttpError';
 import { recordActivity } from './activity';
 import { publishCardUpdated } from './cards';
@@ -24,7 +24,7 @@ export async function listLabels(workspaceId: string, userId: string): Promise<L
 }
 
 export async function createLabel(workspaceId: string, userId: string, input: CreateLabelInput): Promise<Label> {
-  await requireWorkspaceMember(workspaceId, userId);
+  await requireWorkspaceRole(workspaceId, userId, 'MEMBER');
   const label = await prisma.label.create({
     data: { workspaceId, name: input.name, color: input.color },
   });
@@ -33,7 +33,7 @@ export async function createLabel(workspaceId: string, userId: string, input: Cr
 
 export async function deleteLabel(labelId: string, userId: string): Promise<void> {
   const label = await prisma.label.findUniqueOrThrow({ where: { id: labelId } });
-  await requireWorkspaceMember(label.workspaceId, userId);
+  await requireWorkspaceRole(label.workspaceId, userId, 'MEMBER');
   await prisma.label.delete({ where: { id: labelId } });
 }
 
@@ -46,7 +46,7 @@ async function getCardScopedLabel(cardId: string, labelId: string): Promise<{ la
 
 export async function addLabelToCard(cardId: string, labelId: string, userId: string): Promise<Card> {
   const { label, boardId } = await getCardScopedLabel(cardId, labelId);
-  await requireWorkspaceMember(label.workspaceId, userId);
+  await requireWorkspaceRole(label.workspaceId, userId, 'MEMBER');
 
   await prisma.cardLabel.upsert({
     where: { cardId_labelId: { cardId, labelId } },
@@ -66,7 +66,7 @@ export async function addLabelToCard(cardId: string, labelId: string, userId: st
 
 export async function removeLabelFromCard(cardId: string, labelId: string, userId: string): Promise<Card> {
   const { label, boardId } = await getCardScopedLabel(cardId, labelId);
-  await requireWorkspaceMember(label.workspaceId, userId);
+  await requireWorkspaceRole(label.workspaceId, userId, 'MEMBER');
 
   await prisma.cardLabel.deleteMany({ where: { cardId, labelId } });
 
