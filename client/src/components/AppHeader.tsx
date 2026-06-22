@@ -32,7 +32,7 @@ export function AppHeader({ title, backTo, actions }: AppHeaderProps): JSX.Eleme
               <span aria-hidden="true">←</span> {backTo.label}
             </Link>
           )}
-          <h1 className="truncate text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50">{title}</h1>
+          <p className="truncate text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-50">{title}</p>
         </div>
       </div>
       <div className="flex items-center gap-2 sm:gap-3">

@@ -4,9 +4,11 @@ import { Camera, Globe } from 'lucide-react';
 import { api, ApiRequestError } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { AppHeader } from '../components/AppHeader';
+import { AppPage } from '../components/AppPage';
+import { PageHeader } from '../components/PageHeader';
 import { Avatar } from '../components/Avatar';
 import { GithubIcon, LinkedinIcon, TwitterIcon } from '../components/icons';
-import { Alert, Button, FieldLabel, Input, Spinner, Textarea } from '../components/ui';
+import { Alert, Badge, Button, FieldLabel, Input, Spinner, Textarea } from '../components/ui';
 
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -98,9 +100,16 @@ export function ProfilePage(): JSX.Element | null {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
-      <AppHeader title="Your profile" backTo={{ to: '/app', label: 'Workspaces' }} />
-      <main className="mx-auto max-w-2xl px-6 py-8">
+    <AppPage
+      header={<AppHeader title="Your profile" backTo={{ to: '/app', label: 'Workspaces' }} />}
+      maxWidth="max-w-2xl"
+    >
+      <PageHeader
+        eyebrow={<Badge tone="accent">Account</Badge>}
+        title="Your profile"
+        subtitle="Tell your teammates who you are. Your name, photo, and links travel with you across boards, comments, and mentions."
+      />
+      <div className="mt-8">
         {/* Avatar + identity card */}
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-soft ring-1 ring-slate-900/[0.02] dark:border-slate-800 dark:bg-slate-900 dark:ring-0">
           <div className="flex items-center gap-5">
@@ -232,8 +241,8 @@ export function ProfilePage(): JSX.Element | null {
             </Button>
           </div>
         </form>
-      </main>
-    </div>
+      </div>
+    </AppPage>
   );
 }
 

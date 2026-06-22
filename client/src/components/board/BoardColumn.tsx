@@ -145,6 +145,16 @@ export function BoardColumn({
               onEdit={() => onEditCard(card)}
             />
           ))}
+          {column.cards.length === 0 && !isOver && (
+            <button
+              type="button"
+              onClick={() => onAddCard(column.id)}
+              className="flex flex-1 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-slate-300/80 px-3 py-6 text-center text-xs text-slate-400 transition-colors duration-150 hover:border-indigo-300 hover:text-indigo-500 dark:border-slate-700/80 dark:text-slate-500 dark:hover:border-indigo-500/50 dark:hover:text-indigo-300"
+            >
+              <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              No cards yet — add one
+            </button>
+          )}
         </div>
       </SortableContext>
 

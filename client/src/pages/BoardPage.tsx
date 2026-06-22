@@ -4,13 +4,14 @@ import type { ActivityCreatedEvent, ActivityWithActor, Card, Label, WorkspaceMem
 import { api, ApiRequestError } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { AppHeader } from '../components/AppHeader';
+import { AppBackground } from '../components/AppBackground';
 import { KanbanBoard } from '../components/board/KanbanBoard';
 import { PresenceBar } from '../components/board/PresenceBar';
 import { ActivityFeed } from '../components/board/ActivityFeed';
 import { BoardSummaryButton } from '../components/board/BoardSummaryButton';
 import { FilterBar } from '../components/board/FilterBar';
 import { ActivityIcon, ChartIcon } from '../components/icons';
-import { Alert, IconButton } from '../components/ui';
+import { Alert, Badge, IconButton } from '../components/ui';
 import type { CardFormValues } from '../components/board/CardModal';
 import type { ColumnWithCards } from '../lib/board/reorder';
 import { applyCardUpsert, applyColumnUpsert, normalizeBoardColumns } from '../lib/board/boardEvents';
@@ -267,6 +268,16 @@ export function BoardPage(): JSX.Element {
       ) ?? 0,
     [columns, filters],
   );
+  // Glanceable header stat: cards whose due date has already passed.
+  const overdueCount = useMemo(() => {
+    if (!columns) return 0;
+    const now = Date.now();
+    return columns.reduce(
+      (sum, column) =>
+        sum + column.cards.filter((card) => card.dueDate !== null && new Date(card.dueDate).getTime() < now).length,
+      0,
+    );
+  }, [columns]);
 
   async function handleDeleteCard(cardId: string): Promise<void> {
     await api.cards.delete(cardId);
@@ -277,12 +288,26 @@ export function BoardPage(): JSX.Element {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-slate-100 dark:bg-slate-950">
+    <div className="relative flex h-screen flex-col overflow-hidden bg-slate-100 dark:bg-slate-950">
+      <AppBackground />
       <AppHeader
         title={boardTitle ?? 'Board'}
         backTo={workspaceId ? { to: `/workspaces/${workspaceId}`, label: 'Boards' } : undefined}
         actions={
           <>
+            {columns !== null && (
+              <div className="hidden items-center gap-1.5 sm:flex">
+                <Badge mono>
+                  {totalCardCount} {totalCardCount === 1 ? 'card' : 'cards'}
+                </Badge>
+                {overdueCount > 0 && (
+                  <Badge tone="warn" mono>
+                    {overdueCount} overdue
+                  </Badge>
+                )}
+                <span className="mx-0.5 hidden h-6 w-px bg-slate-200 dark:bg-slate-700/80 lg:block" />
+              </div>
+            )}
             <PresenceBar users={presence} isConnected={isConnected} currentUserId={user?.id} />
             {boardId && <BoardSummaryButton boardId={boardId} />}
             {boardId && (
@@ -304,57 +329,59 @@ export function BoardPage(): JSX.Element {
           </>
         }
       />
-      {mutationError && (
-        <div className="px-6 pt-3">
-          <Alert tone="danger" onDismiss={() => setMutationError(null)}>
-            {mutationError}
-          </Alert>
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col">
+        {mutationError && (
+          <div className="px-6 pt-3">
+            <Alert tone="danger" onDismiss={() => setMutationError(null)}>
+              {mutationError}
+            </Alert>
+          </div>
+        )}
+        {columns !== null && workspaceId !== null && (
+          <FilterBar
+            filters={filters}
+            onFiltersChange={handleFiltersChange}
+            members={members}
+            labels={workspaceLabels}
+            matchedCount={matchedCardCount}
+            totalCount={totalCardCount}
+            savedViews={savedViews}
+            onSaveView={handleSaveView}
+            onApplyView={handleApplyView}
+            onDeleteView={handleDeleteView}
+          />
+        )}
+        <div className="flex min-h-0 flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden">
+            {columns === null && !loadError && (
+              <p className="p-6 text-sm text-slate-400 dark:text-slate-500">Loading board…</p>
+            )}
+            {loadError && <p className="p-6 text-sm text-red-600 dark:text-red-400">{loadError}</p>}
+            {columns !== null && workspaceId !== null && (
+              <KanbanBoard
+                columns={columns}
+                members={members}
+                workspaceId={workspaceId}
+                filters={filters}
+                openCardId={openCardId}
+                onOpenCardHandled={handleOpenCardHandled}
+                editingByCard={editingByCard}
+                onEditingChange={announceEditing}
+                onColumnsChange={handleColumnsChange}
+                onColumnMoved={handleColumnMoved}
+                onCardMoved={handleCardMoved}
+                onCreateColumn={handleCreateColumn}
+                onRenameColumn={handleRenameColumn}
+                onDeleteColumn={handleDeleteColumn}
+                onCreateCard={handleCreateCard}
+                onUpdateCard={handleUpdateCard}
+                onDeleteCard={handleDeleteCard}
+                onCardUpdated={handleCardUpdated}
+              />
+            )}
+          </div>
+          {showActivity && <ActivityFeed activity={activity} onClose={() => setShowActivity(false)} />}
         </div>
-      )}
-      {columns !== null && workspaceId !== null && (
-        <FilterBar
-          filters={filters}
-          onFiltersChange={handleFiltersChange}
-          members={members}
-          labels={workspaceLabels}
-          matchedCount={matchedCardCount}
-          totalCount={totalCardCount}
-          savedViews={savedViews}
-          onSaveView={handleSaveView}
-          onApplyView={handleApplyView}
-          onDeleteView={handleDeleteView}
-        />
-      )}
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 overflow-hidden">
-          {columns === null && !loadError && (
-            <p className="p-6 text-sm text-slate-400 dark:text-slate-500">Loading board…</p>
-          )}
-          {loadError && <p className="p-6 text-sm text-red-600 dark:text-red-400">{loadError}</p>}
-          {columns !== null && workspaceId !== null && (
-            <KanbanBoard
-              columns={columns}
-              members={members}
-              workspaceId={workspaceId}
-              filters={filters}
-              openCardId={openCardId}
-              onOpenCardHandled={handleOpenCardHandled}
-              editingByCard={editingByCard}
-              onEditingChange={announceEditing}
-              onColumnsChange={handleColumnsChange}
-              onColumnMoved={handleColumnMoved}
-              onCardMoved={handleCardMoved}
-              onCreateColumn={handleCreateColumn}
-              onRenameColumn={handleRenameColumn}
-              onDeleteColumn={handleDeleteColumn}
-              onCreateCard={handleCreateCard}
-              onUpdateCard={handleUpdateCard}
-              onDeleteCard={handleDeleteCard}
-              onCardUpdated={handleCardUpdated}
-            />
-          )}
-        </div>
-        {showActivity && <ActivityFeed activity={activity} onClose={() => setShowActivity(false)} />}
       </div>
     </div>
   );

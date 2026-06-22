@@ -12,6 +12,8 @@ import { WORKSPACE_ROLE_RANK, roleAtLeast } from '@taskflow/shared';
 import { api, ApiRequestError } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { AppHeader } from '../components/AppHeader';
+import { AppPage } from '../components/AppPage';
+import { PageHeader } from '../components/PageHeader';
 import { Avatar } from '../components/Avatar';
 import { TrashIcon } from '../components/icons';
 import { Badge, Button, EmptyState, Input, Select, Spinner } from '../components/ui';
@@ -157,15 +159,39 @@ export function WorkspaceMembersPage(): JSX.Element {
     }
   }
 
+  const memberCount = members?.length ?? 0;
+
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
-      <AppHeader
-        title={workspace ? `Members – ${workspace.name}` : 'Members'}
-        backTo={workspaceId ? { to: `/workspaces/${workspaceId}`, label: 'Boards' } : undefined}
+    <AppPage
+      header={
+        <AppHeader
+          title={workspace ? `Members – ${workspace.name}` : 'Members'}
+          backTo={workspaceId ? { to: `/workspaces/${workspaceId}`, label: 'Boards' } : undefined}
+        />
+      }
+      maxWidth="max-w-3xl"
+    >
+      <PageHeader
+        eyebrow={
+          members !== null ? (
+            <Badge tone="accent" mono>
+              {memberCount} {memberCount === 1 ? 'member' : 'members'}
+            </Badge>
+          ) : undefined
+        }
+        title="Members"
+        subtitle={
+          workspace
+            ? `Manage who can see and shape ${workspace.name} — invite teammates, set their access, and hand off ownership.`
+            : 'Manage who can see and shape this workspace — invite teammates, set their access, and hand off ownership.'
+        }
       />
-      <main className="mx-auto max-w-3xl px-6 py-8">
+      <div className="mt-8">
         {canManage && (
-          <form onSubmit={handleInvite} className="mb-8 flex flex-wrap gap-3">
+          <form
+            onSubmit={handleInvite}
+            className="mb-8 flex flex-wrap gap-3 rounded-2xl border border-slate-200 bg-white/70 p-4 shadow-soft ring-1 ring-slate-900/[0.02] backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/60 dark:ring-0"
+          >
             <Input
               type="email"
               value={inviteEmail}
@@ -270,7 +296,7 @@ export function WorkspaceMembersPage(): JSX.Element {
             );
           })}
         </ul>
-      </main>
-    </div>
+      </div>
+    </AppPage>
   );
 }

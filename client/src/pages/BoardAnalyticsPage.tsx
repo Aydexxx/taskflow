@@ -3,7 +3,9 @@ import { useParams } from 'react-router-dom';
 import type { BoardAnalytics } from '@taskflow/shared';
 import { api, ApiRequestError } from '../lib/api';
 import { AppHeader } from '../components/AppHeader';
-import { Button, EmptyState, FieldLabel, Select, Spinner } from '../components/ui';
+import { AppPage } from '../components/AppPage';
+import { PageHeader } from '../components/PageHeader';
+import { Badge, Button, EmptyState, FieldLabel, Select, Spinner } from '../components/ui';
 import { StatCard } from '../components/analytics/StatCard';
 import { ChartCard } from '../components/analytics/ChartCard';
 import {
@@ -48,12 +50,20 @@ export function BoardAnalyticsPage(): JSX.Element {
   }, [boardId, weeks, reloadKey]);
 
   return (
-    <div className="min-h-screen bg-slate-100 dark:bg-slate-950">
-      <AppHeader
-        title={analytics ? `${analytics.boardTitle} · Analytics` : 'Analytics'}
-        backTo={boardId ? { to: `/boards/${boardId}`, label: 'Board' } : undefined}
+    <AppPage
+      header={
+        <AppHeader
+          title={analytics ? `${analytics.boardTitle} · Analytics` : 'Analytics'}
+          backTo={boardId ? { to: `/boards/${boardId}`, label: 'Board' } : undefined}
+        />
+      }
+    >
+      <PageHeader
+        eyebrow={<Badge tone="accent">Analytics</Badge>}
+        title={analytics ? analytics.boardTitle : 'Board analytics'}
+        subtitle="Status, throughput, and cycle-time at a glance — see where work piles up and how fast it ships."
       />
-      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+      <div className="mt-8">
         {isLoading && (
           <div className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500">
             <Spinner className="h-4 w-4" /> Loading analytics…
@@ -74,8 +84,8 @@ export function BoardAnalyticsPage(): JSX.Element {
         {!isLoading && !error && analytics && (
           <AnalyticsContent analytics={analytics} weeks={weeks} onWeeksChange={setWeeks} />
         )}
-      </main>
-    </div>
+      </div>
+    </AppPage>
   );
 }
 
