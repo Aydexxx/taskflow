@@ -10,6 +10,7 @@ import { AppPage } from '../components/AppPage';
 import { PageHeader } from '../components/PageHeader';
 import { Avatar } from '../components/Avatar';
 import { TrashIcon } from '../components/icons';
+import { WorkspaceAiAssistant } from '../components/workspace/WorkspaceAiAssistant';
 import { Badge, Button, EmptyState, Input, Spinner } from '../components/ui';
 import { formatRelativeTime } from '../lib/time';
 import { myRole as deriveMyRole } from '../lib/workspaceRole';
@@ -179,6 +180,7 @@ export function WorkspaceBoardsPage(): JSX.Element {
                 <MemberStack members={members} />
               </Link>
             )}
+            {workspaceId && <WorkspaceAiAssistant workspaceId={workspaceId} />}
             {canCreateBoards && (
               <Button type="button" onClick={() => titleInputRef.current?.focus()}>
                 <Plus className="h-4 w-4" />

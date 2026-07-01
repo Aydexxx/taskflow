@@ -4,6 +4,8 @@ import type {
   ApiError,
   AskBoardRequest,
   AskBoardResponse,
+  AskWorkspaceRequest,
+  AskWorkspaceResponse,
   AttachLabelRequest,
   AuthResponse,
   Board,
@@ -266,6 +268,12 @@ export const api = {
 
     askBoard: (boardId: string, input: AskBoardRequest): Promise<AskBoardResponse> =>
       request<AskBoardResponse>(`/api/ai/boards/${boardId}/ask`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
+
+    askWorkspace: (workspaceId: string, input: AskWorkspaceRequest): Promise<AskWorkspaceResponse> =>
+      request<AskWorkspaceResponse>(`/api/ai/workspaces/${workspaceId}/ask`, {
         method: 'POST',
         body: JSON.stringify(input),
       }),

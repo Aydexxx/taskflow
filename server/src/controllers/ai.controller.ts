@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import type {
   AskBoardResponse,
+  AskWorkspaceResponse,
   DraftDescriptionResponse,
   SuggestMetadataResponse,
   SuggestSubtasksResponse,
@@ -8,7 +9,7 @@ import type {
 } from '@taskflow/shared';
 import { currentUserId } from '../middleware/auth';
 import * as ai from '../services/ai/features';
-import type { AskBoardInput, DraftDescriptionInput } from '../validation/ai.schemas';
+import type { AskBoardInput, AskWorkspaceInput, DraftDescriptionInput } from '../validation/ai.schemas';
 
 export async function summarizeBoard(
   req: Request<{ boardId: string }>,
@@ -22,6 +23,13 @@ export async function askBoard(
   res: Response<AskBoardResponse>,
 ): Promise<void> {
   res.json(await ai.askBoard(req.params.boardId, currentUserId(req), req.body.question));
+}
+
+export async function askWorkspace(
+  req: Request<{ workspaceId: string }, unknown, AskWorkspaceInput>,
+  res: Response<AskWorkspaceResponse>,
+): Promise<void> {
+  res.json(await ai.askWorkspace(req.params.workspaceId, currentUserId(req), req.body.question));
 }
 
 export async function suggestSubtasks(

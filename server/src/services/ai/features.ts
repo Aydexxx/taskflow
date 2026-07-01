@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { CARD_PRIORITIES, type CardPriority } from '@taskflow/shared';
 import type {
   AskBoardResponse,
+  AskWorkspaceResponse,
   DraftDescriptionResponse,
   SuggestMetadataResponse,
   SuggestSubtasksResponse,
@@ -22,11 +23,14 @@ import {
   buildMetadataPrompt,
   buildSubtasksPrompt,
   buildSummaryPrompt,
+  buildWorkspaceAskPrompt,
   DESCRIPTION_SYSTEM,
   METADATA_SYSTEM,
   SUBTASKS_SYSTEM,
   SUMMARY_SYSTEM,
+  WORKSPACE_ASK_SYSTEM,
   type BoardSnapshot,
+  type WorkspaceSnapshot,
 } from './prompts';
 
 /**
@@ -61,7 +65,7 @@ function enforceRateLimit(userId: string): void {
 const SUMMARY_TTL_MS = 60_000;
 const summaryCache = new Map<string, { text: string; expiresAt: number }>();
 
-const ACTIVITY_VERB: Record<string, string> = {
+export const ACTIVITY_VERB: Record<string, string> = {
   card_created: 'created card',
   card_deleted: 'deleted card',
   card_moved: 'moved card',
@@ -195,6 +199,95 @@ export async function askBoard(boardId: string, userId: string, question: string
   const answer = raw.trim();
   if (!answer) aiLogger.warn('ask.empty', { boardId });
   return { answer };
+}
+
+// --- Ask the workspace ---------------------------------------------------
+
+/** Sensible caps to keep the workspace snapshot compact (token cost). */
+const WORKSPACE_MEMBER_LIMIT = 50;
+const WORKSPACE_BOARD_LIMIT = 30;
+const WORKSPACE_ACTIVITY_LIMIT = 40;
+
+/**
+ * Answer a free-form question grounded in a workspace's members, boards, and
+ * recent activity across all of its boards. Read-only Q&A: nothing is cached
+ * (each question differs) and nothing is mutated.
+ */
+export async function askWorkspace(
+  workspaceId: string,
+  userId: string,
+  question: string,
+): Promise<AskWorkspaceResponse> {
+  await requireWorkspaceMember(workspaceId, userId);
+  enforceRateLimit(userId);
+  requireEnabled();
+
+  const snapshot = await buildWorkspaceSnapshot(workspaceId);
+  const raw = await getAiService().generate('ask_workspace', buildWorkspaceAskPrompt(snapshot, question), {
+    system: WORKSPACE_ASK_SYSTEM,
+    temperature: 0.3,
+  });
+
+  const answer = raw.trim();
+  if (!answer) aiLogger.warn('ask_workspace.empty', { workspaceId });
+  return { answer };
+}
+
+async function buildWorkspaceSnapshot(workspaceId: string): Promise<WorkspaceSnapshot> {
+  const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { name: true } });
+  if (!workspace) throw new NotFoundError('Workspace not found');
+
+  const now = Date.now();
+  const isOverdue = (dueDate: Date | null): boolean => dueDate !== null && dueDate.getTime() < now;
+
+  const memberRows = await prisma.workspaceMember.findMany({
+    where: { workspaceId },
+    include: { user: { select: { name: true } } },
+    orderBy: { createdAt: 'asc' },
+    take: WORKSPACE_MEMBER_LIMIT,
+  });
+  const members = memberRows.map((member) => ({ name: member.user.name, role: member.role }));
+
+  const boardRows = await prisma.board.findMany({
+    where: { workspaceId },
+    orderBy: { createdAt: 'asc' },
+    take: WORKSPACE_BOARD_LIMIT,
+    include: { columns: { include: { cards: { select: { dueDate: true } } } } },
+  });
+  // Denormalize per-board tallies, and keep a title lookup for tagging activity.
+  const boardTitleById = new Map<string, string>();
+  const boards = boardRows.map((board) => {
+    boardTitleById.set(board.id, board.title);
+    let totalCards = 0;
+    let overdueCards = 0;
+    for (const column of board.columns) {
+      totalCards += column.cards.length;
+      overdueCards += column.cards.filter((card) => isOverdue(card.dueDate)).length;
+    }
+    return { title: board.title, totalCards, overdueCards };
+  });
+
+  // Activity is stored per-board, so fan out across every board in the workspace
+  // and take the most recent slice so "what did X do recently" is answerable.
+  const activities = await prisma.activity.findMany({
+    where: { boardId: { in: [...boardTitleById.keys()] } },
+    include: { actor: { select: { name: true } } },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: WORKSPACE_ACTIVITY_LIMIT,
+  });
+  const recentActivity = activities.map((activity) => {
+    const metadata = JSON.parse(activity.metadata) as { cardTitle?: string; columnTitle?: string };
+    const verb = ACTIVITY_VERB[activity.type] ?? activity.type;
+    const subject = metadata.cardTitle ?? metadata.columnTitle ?? '';
+    const boardTitle = boardTitleById.get(activity.boardId) ?? 'a board';
+    const where = ` on board "${boardTitle}"`;
+    return `${activity.actor.name} ${verb}${subject ? ` "${subject}"` : ''}${where} (${relativeTime(
+      activity.createdAt,
+      now,
+    )})`;
+  });
+
+  return { name: workspace.name, members, boards, recentActivity };
 }
 
 // --- Subtask breakdown ---------------------------------------------------

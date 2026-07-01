@@ -11,3 +11,9 @@ export const askBoardSchema = z.object({
 });
 
 export type AskBoardInput = z.infer<typeof askBoardSchema>;
+
+export const askWorkspaceSchema = z.object({
+  question: z.string().trim().min(1, 'Question is required').max(500, 'Question is too long'),
+});
+
+export type AskWorkspaceInput = z.infer<typeof askWorkspaceSchema>;

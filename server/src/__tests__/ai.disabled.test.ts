@@ -1,12 +1,22 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../app';
 import { prisma } from '../services/prisma';
-import { getAiService } from '../services/ai';
+import { AiService, createAiServiceFromEnv, getAiService, setAiService } from '../services/ai';
 
-// The default test environment configures no AI provider (AI_PROVIDER is unset),
-// so this file exercises the graceful-degradation contract: AI is fully inert.
+// This file exercises the graceful-degradation contract: with no provider AI is
+// fully inert. We inject a disabled service (a null client) rather than trusting
+// the ambient env, so the suite passes regardless of the shell's AI_* variables.
 const app = createApp();
+
+beforeAll(() => {
+  setAiService(new AiService(null));
+});
+
+// Restore the real (env-derived) service so other test files are unaffected.
+afterAll(() => {
+  setAiService(createAiServiceFromEnv());
+});
 
 beforeEach(async () => {
   await prisma.workspace.deleteMany();
@@ -69,6 +79,14 @@ describe('AI disabled (no provider configured)', () => {
 
     const endpoints = [
       request(app).post(`/api/ai/boards/${board.id}/summary`).set('Authorization', `Bearer ${owner.token}`),
+      request(app)
+        .post(`/api/ai/boards/${board.id}/ask`)
+        .set('Authorization', `Bearer ${owner.token}`)
+        .send({ question: 'What is going on?' }),
+      request(app)
+        .post(`/api/ai/workspaces/${workspace.id}/ask`)
+        .set('Authorization', `Bearer ${owner.token}`)
+        .send({ question: 'Who works here?' }),
       request(app)
         .post(`/api/ai/workspaces/${workspace.id}/draft-description`)
         .set('Authorization', `Bearer ${owner.token}`)

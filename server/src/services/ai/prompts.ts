@@ -89,6 +89,59 @@ export function buildAskPrompt(snapshot: BoardSnapshot, question: string): strin
     .join('\n');
 }
 
+/** Compact, denormalized snapshot of a whole workspace passed into the workspace-ask prompt. */
+export interface WorkspaceSnapshot {
+  name: string;
+  members: Array<{ name: string; role: string }>;
+  boards: Array<{ title: string; totalCards: number; overdueCards: number }>;
+  /** Recent activity across every board in the workspace, most recent first. */
+  recentActivity: string[];
+}
+
+export const WORKSPACE_ASK_SYSTEM =
+  'You are a precise assistant that answers questions about a single workspace in a Kanban tool. ' +
+  'Answer ONLY from the workspace data provided in the prompt (members and their roles, boards with card/overdue ' +
+  'counts, and recent activity across boards). Be concise and factual. Never invent people, boards, cards, or dates ' +
+  'that are not in the data. If the data does not contain the answer, say so plainly ' +
+  "(e.g. \"The workspace data doesn't show that\") rather than guessing.";
+
+export function buildWorkspaceAskPrompt(snapshot: WorkspaceSnapshot, question: string): string {
+  const members =
+    snapshot.members.length > 0
+      ? snapshot.members.map((member) => `- ${member.name} (${member.role})`).join('\n')
+      : '- (no members)';
+  const boards =
+    snapshot.boards.length > 0
+      ? snapshot.boards
+          .map((board) => `- ${board.title}: ${board.totalCards} card(s), ${board.overdueCards} overdue`)
+          .join('\n')
+      : '- (no boards)';
+  const activity =
+    snapshot.recentActivity.length > 0
+      ? snapshot.recentActivity.map((a) => `- ${a}`).join('\n')
+      : '- (none recorded)';
+
+  return [
+    `Workspace: ${snapshot.name}`,
+    '',
+    'Members (name and role):',
+    members,
+    '',
+    'Boards:',
+    boards,
+    '',
+    'Recent activity across all boards (most recent first):',
+    activity,
+    '',
+    `Question: ${question}`,
+    '',
+    'Answer the question using only the workspace data above. Keep it short (1-4 sentences), plain prose, no headings. ' +
+      "If the data doesn't contain the answer, say so.",
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
 export const SUBTASKS_SYSTEM =
   'You break work items into small, actionable subtasks. ' + STRICT_JSON_RULE;
 

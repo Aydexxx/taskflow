@@ -39,6 +39,18 @@ export interface AskBoardResponse {
   answer: string;
 }
 
+/** Request body for `POST /api/ai/workspaces/:workspaceId/ask`. */
+export interface AskWorkspaceRequest {
+  /** The user's free-form natural-language question about the workspace. */
+  question: string;
+}
+
+/** Response for `POST /api/ai/workspaces/:workspaceId/ask`. */
+export interface AskWorkspaceResponse {
+  /** A concise, plain-text answer grounded in the workspace's members, boards, and activity. */
+  answer: string;
+}
+
 /** Response for `POST /api/ai/cards/:cardId/subtasks`. */
 export interface SuggestSubtasksResponse {
   /** Suggested checklist items; the user accepts/edits these before anything is saved. */

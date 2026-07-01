@@ -135,6 +135,73 @@ describe('AI enabled (faked provider)', () => {
     });
   });
 
+  describe('ask workspace', () => {
+    it('answers from a workspace snapshot of members, boards, and activity', async () => {
+      const { owner, workspace } = await setupBoardWithCard();
+      fake.response = 'Ada is the only member, and the Sprint Board has one card.';
+
+      const res = await request(app)
+        .post(`/api/ai/workspaces/${workspace.id}/ask`)
+        .set('Authorization', `Bearer ${owner.token}`)
+        .send({ question: 'Who works here and what boards exist?' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.answer).toBe('Ada is the only member, and the Sprint Board has one card.');
+      expect(fake.calls).toHaveLength(1);
+      // System prompt scopes the model to workspace data.
+      expect(fake.calls[0]?.options?.system).toContain('single workspace');
+      // Snapshot grounds the prompt in real workspace data: member, board, and
+      // the question, plus activity from card creation on that board.
+      const prompt = fake.calls[0]?.prompt ?? '';
+      expect(prompt).toContain('Ada (OWNER)');
+      expect(prompt).toContain('Sprint Board');
+      expect(prompt).toContain('created card "Build login page"');
+      expect(prompt).toContain('Who works here and what boards exist?');
+    });
+
+    it('is not cached — each question hits the provider', async () => {
+      const { owner, workspace } = await setupBoardWithCard();
+      fake.response = 'First answer.';
+      await request(app)
+        .post(`/api/ai/workspaces/${workspace.id}/ask`)
+        .set('Authorization', `Bearer ${owner.token}`)
+        .send({ question: 'Question one?' });
+
+      fake.response = 'Second answer.';
+      const second = await request(app)
+        .post(`/api/ai/workspaces/${workspace.id}/ask`)
+        .set('Authorization', `Bearer ${owner.token}`)
+        .send({ question: 'Question two?' });
+
+      expect(second.body.answer).toBe('Second answer.');
+      expect(fake.calls).toHaveLength(2); // provider hit on every ask
+    });
+
+    it('validates the request body', async () => {
+      const { owner, workspace } = await setupBoardWithCard();
+
+      const res = await request(app)
+        .post(`/api/ai/workspaces/${workspace.id}/ask`)
+        .set('Authorization', `Bearer ${owner.token}`)
+        .send({ question: '' });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects a non-member with 403 and never calls the provider', async () => {
+      const { workspace } = await setupBoardWithCard();
+      const outsider = await registerUser('Eve', 'eve@example.com');
+
+      const res = await request(app)
+        .post(`/api/ai/workspaces/${workspace.id}/ask`)
+        .set('Authorization', `Bearer ${outsider.token}`)
+        .send({ question: 'Who works here?' });
+
+      expect(res.status).toBe(403);
+      expect(fake.calls).toHaveLength(0);
+    });
+  });
+
   describe('break into subtasks', () => {
     it('parses strict JSON into a deduped subtask list', async () => {
       const { owner, card } = await setupBoardWithCard();
