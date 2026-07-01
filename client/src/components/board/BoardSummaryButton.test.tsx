@@ -31,7 +31,7 @@ describe('BoardSummaryButton', () => {
     setEnabled(false);
     const { container } = render(<BoardSummaryButton boardId="board-1" />);
     expect(container).toBeEmptyDOMElement();
-    expect(screen.queryByRole('button', { name: /summarize board/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /ai board assistant/i })).not.toBeInTheDocument();
   });
 
   it('shows the button and renders a fetched summary when AI is enabled', async () => {
@@ -39,7 +39,7 @@ describe('BoardSummaryButton', () => {
     summarizeBoardMock.mockResolvedValue({ summary: 'Two cards in progress, none overdue.' });
 
     render(<BoardSummaryButton boardId="board-1" />);
-    const button = screen.getByRole('button', { name: /summarize board/i });
+    const button = screen.getByRole('button', { name: /ai board assistant/i });
     fireEvent.click(button);
 
     expect(summarizeBoardMock).toHaveBeenCalledWith('board-1');
@@ -51,7 +51,7 @@ describe('BoardSummaryButton', () => {
     summarizeBoardMock.mockRejectedValue(new Error('boom'));
 
     render(<BoardSummaryButton boardId="board-1" />);
-    fireEvent.click(screen.getByRole('button', { name: /summarize board/i }));
+    fireEvent.click(screen.getByRole('button', { name: /ai board assistant/i }));
 
     await waitFor(() => expect(screen.getByText(/failed to summarize/i)).toBeInTheDocument());
   });

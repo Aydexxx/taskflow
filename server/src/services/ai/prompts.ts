@@ -51,6 +51,44 @@ export function buildSummaryPrompt(snapshot: BoardSnapshot): string {
     .join('\n');
 }
 
+export const ASK_SYSTEM =
+  'You are a precise assistant that answers questions about a single Kanban board. ' +
+  'Answer ONLY from the board data provided in the prompt (columns, cards, counts, overdue info, and recent activity). ' +
+  'Be concise and factual. Never invent cards, people, dates, or numbers that are not in the data. ' +
+  "If the data does not contain the answer, say so plainly (e.g. \"The board data doesn't show that\") rather than guessing.";
+
+export function buildAskPrompt(snapshot: BoardSnapshot, question: string): string {
+  const columns = snapshot.columns
+    .map((column) => {
+      const samples = column.sampleTitles.length > 0 ? ` — e.g. ${column.sampleTitles.join('; ')}` : '';
+      return `- ${column.title}: ${column.cardCount} card(s), ${column.overdueCount} overdue${samples}`;
+    })
+    .join('\n');
+  const activity =
+    snapshot.recentActivity.length > 0
+      ? snapshot.recentActivity.map((a) => `- ${a}`).join('\n')
+      : '- (none recorded)';
+
+  return [
+    `Board: ${snapshot.title}`,
+    snapshot.description ? `About: ${snapshot.description}` : '',
+    `Totals: ${snapshot.totalCards} card(s), ${snapshot.overdueCards} overdue.`,
+    '',
+    'Columns:',
+    columns || '- (no columns)',
+    '',
+    'Recent activity (most recent first):',
+    activity,
+    '',
+    `Question: ${question}`,
+    '',
+    'Answer the question using only the board data above. Keep it short (1-4 sentences), plain prose, no headings. ' +
+      "If the data doesn't contain the answer, say so.",
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
 export const SUBTASKS_SYSTEM =
   'You break work items into small, actionable subtasks. ' + STRICT_JSON_RULE;
 

@@ -2,6 +2,8 @@ import type {
   ActivityWithActor,
   AddWorkspaceMemberRequest,
   ApiError,
+  AskBoardRequest,
+  AskBoardResponse,
   AttachLabelRequest,
   AuthResponse,
   Board,
@@ -261,6 +263,12 @@ export const api = {
   ai: {
     summarizeBoard: (boardId: string): Promise<SummarizeBoardResponse> =>
       request<SummarizeBoardResponse>(`/api/ai/boards/${boardId}/summary`, { method: 'POST' }),
+
+    askBoard: (boardId: string, input: AskBoardRequest): Promise<AskBoardResponse> =>
+      request<AskBoardResponse>(`/api/ai/boards/${boardId}/ask`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
 
     draftDescription: (workspaceId: string, input: DraftDescriptionRequest): Promise<DraftDescriptionResponse> =>
       request<DraftDescriptionResponse>(`/api/ai/workspaces/${workspaceId}/draft-description`, {

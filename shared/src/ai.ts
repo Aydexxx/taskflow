@@ -27,6 +27,18 @@ export interface SummarizeBoardResponse {
   summary: string;
 }
 
+/** Request body for `POST /api/ai/boards/:boardId/ask`. */
+export interface AskBoardRequest {
+  /** The user's free-form natural-language question about the board. */
+  question: string;
+}
+
+/** Response for `POST /api/ai/boards/:boardId/ask`. */
+export interface AskBoardResponse {
+  /** A concise, plain-text answer grounded in the board's current state (may include line breaks). */
+  answer: string;
+}
+
 /** Response for `POST /api/ai/cards/:cardId/subtasks`. */
 export interface SuggestSubtasksResponse {
   /** Suggested checklist items; the user accepts/edits these before anything is saved. */

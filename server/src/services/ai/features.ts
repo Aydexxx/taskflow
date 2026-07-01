@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { CARD_PRIORITIES, type CardPriority } from '@taskflow/shared';
 import type {
+  AskBoardResponse,
   DraftDescriptionResponse,
   SuggestMetadataResponse,
   SuggestSubtasksResponse,
@@ -15,6 +16,8 @@ import { checkRateLimit } from './rateLimit';
 import { parseStructured } from './json';
 import { aiLogger } from './logger';
 import {
+  ASK_SYSTEM,
+  buildAskPrompt,
   buildDescriptionPrompt,
   buildMetadataPrompt,
   buildSubtasksPrompt,
@@ -96,7 +99,21 @@ export async function summarizeBoard(boardId: string, userId: string): Promise<S
   return { summary };
 }
 
-async function buildBoardSnapshot(boardId: string): Promise<BoardSnapshot> {
+/** Tuning for how much history the snapshot carries; summary and ask differ. */
+interface SnapshotOptions {
+  /** How many recent activity entries to include. */
+  activityLimit: number;
+  /** Whether to tag each activity entry with a relative timestamp. */
+  withTimestamps: boolean;
+}
+
+const SUMMARY_SNAPSHOT: SnapshotOptions = { activityLimit: 8, withTimestamps: false };
+const ASK_SNAPSHOT: SnapshotOptions = { activityLimit: 25, withTimestamps: true };
+
+async function buildBoardSnapshot(
+  boardId: string,
+  options: SnapshotOptions = SUMMARY_SNAPSHOT,
+): Promise<BoardSnapshot> {
   const board = await prisma.board.findUnique({
     where: { id: boardId },
     include: {
@@ -129,16 +146,55 @@ async function buildBoardSnapshot(boardId: string): Promise<BoardSnapshot> {
     where: { boardId },
     include: { actor: { select: { name: true } } },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    take: 8,
+    take: options.activityLimit,
   });
   const recentActivity = activities.map((activity) => {
     const metadata = JSON.parse(activity.metadata) as { cardTitle?: string; columnTitle?: string };
     const verb = ACTIVITY_VERB[activity.type] ?? activity.type;
     const subject = metadata.cardTitle ?? metadata.columnTitle ?? '';
-    return `${activity.actor.name} ${verb}${subject ? ` "${subject}"` : ''}`;
+    const line = `${activity.actor.name} ${verb}${subject ? ` "${subject}"` : ''}`;
+    // Ask needs to answer "who did what recently" questions, so tag each entry
+    // with a compact relative time; the summary omits it to stay terse.
+    return options.withTimestamps ? `${line} (${relativeTime(activity.createdAt, now)})` : line;
   });
 
   return { title: board.title, description: board.description, columns, totalCards, overdueCards, recentActivity };
+}
+
+/** Compact "3h ago" style relative time for grounding activity in the ask prompt. */
+function relativeTime(then: Date, now: number): string {
+  const seconds = Math.max(0, Math.round((now - then.getTime()) / 1000));
+  if (seconds < 60) return 'just now';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+}
+
+// --- Ask the board -------------------------------------------------------
+
+/**
+ * Answer a free-form question grounded in a board's current state and recent
+ * activity. Read-only Q&A: nothing is cached (each question differs) and
+ * nothing is mutated.
+ */
+export async function askBoard(boardId: string, userId: string, question: string): Promise<AskBoardResponse> {
+  const workspaceId = await resolveBoardWorkspaceId(boardId);
+  await requireWorkspaceMember(workspaceId, userId);
+  enforceRateLimit(userId);
+  requireEnabled();
+
+  const snapshot = await buildBoardSnapshot(boardId, ASK_SNAPSHOT);
+  const raw = await getAiService().generate('ask_board', buildAskPrompt(snapshot, question), {
+    system: ASK_SYSTEM,
+    temperature: 0.3,
+  });
+
+  const answer = raw.trim();
+  if (!answer) aiLogger.warn('ask.empty', { boardId });
+  return { answer };
 }
 
 // --- Subtask breakdown ---------------------------------------------------

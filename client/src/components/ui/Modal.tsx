@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from './cn';
 
 interface ModalProps {
@@ -12,6 +13,11 @@ interface ModalProps {
 /**
  * Centered modal dialog with a dimmed backdrop. Closes on backdrop click and on
  * Escape, animates in, and locks body scroll while open.
+ *
+ * Rendered through a portal into document.body so the `fixed inset-0` overlay is
+ * positioned against the viewport. Otherwise an ancestor that establishes a
+ * containing block for fixed descendants — e.g. the app header's
+ * `backdrop-blur` — would trap the overlay and pin it to that element instead.
  */
 export function Modal({ ariaLabel, onClose, children, className }: ModalProps): JSX.Element {
   useEffect(() => {
@@ -27,7 +33,7 @@ export function Modal({ ariaLabel, onClose, children, className }: ModalProps): 
     };
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 animate-fade-in backdrop-blur-sm dark:bg-slate-950/70"
       onClick={onClose}
@@ -44,6 +50,7 @@ export function Modal({ ariaLabel, onClose, children, className }: ModalProps): 
       >
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

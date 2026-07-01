@@ -5,3 +5,9 @@ export const draftDescriptionSchema = z.object({
 });
 
 export type DraftDescriptionInput = z.infer<typeof draftDescriptionSchema>;
+
+export const askBoardSchema = z.object({
+  question: z.string().trim().min(1, 'Question is required').max(500, 'Question is too long'),
+});
+
+export type AskBoardInput = z.infer<typeof askBoardSchema>;

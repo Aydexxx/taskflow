@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { draftDescription, suggestMetadata, suggestSubtasks, summarizeBoard } from '../controllers/ai.controller';
+import { askBoard, draftDescription, suggestMetadata, suggestSubtasks, summarizeBoard } from '../controllers/ai.controller';
 import { asyncHandler } from '../middleware/asyncHandler';
 import { requireAuth } from '../middleware/auth';
 import { requireAiEnabled } from '../middleware/requireAiEnabled';
 import { validateBody } from '../middleware/validate';
-import { draftDescriptionSchema } from '../validation/ai.schemas';
+import { askBoardSchema, draftDescriptionSchema } from '../validation/ai.schemas';
 
 const router = Router();
 
@@ -13,6 +13,7 @@ const router = Router();
 router.use(requireAuth, requireAiEnabled);
 
 router.post('/boards/:boardId/summary', asyncHandler(summarizeBoard));
+router.post('/boards/:boardId/ask', validateBody(askBoardSchema), asyncHandler(askBoard));
 router.post(
   '/workspaces/:workspaceId/draft-description',
   validateBody(draftDescriptionSchema),
