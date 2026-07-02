@@ -1,4 +1,4 @@
-import type { GenerateOptions, LlmClient } from '../types';
+import type { GenerateOptions, LlmClient, LlmMessage } from '../types';
 import { LlmTransportError, postJson } from '../http';
 
 export interface OpenAiConfig {
@@ -28,10 +28,14 @@ export class OpenAiClient implements LlmClient {
   constructor(private readonly config: OpenAiConfig) {}
 
   async generate(prompt: string, options: GenerateOptions = {}): Promise<string> {
-    const messages = [
+    const messages: LlmMessage[] = [
       ...(options.system ? [{ role: 'system' as const, content: options.system }] : []),
       { role: 'user' as const, content: prompt },
     ];
+    return this.chat(messages, options);
+  }
+
+  async chat(messages: LlmMessage[], options: GenerateOptions = {}): Promise<string> {
     const body = await postJson<ChatCompletionResponse>(
       `${this.config.baseUrl}/chat/completions`,
       { model: this.config.chatModel, messages, temperature: options.temperature ?? 0.4 },

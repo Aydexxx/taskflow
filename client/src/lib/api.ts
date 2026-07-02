@@ -2,10 +2,12 @@ import type {
   ActivityWithActor,
   AddWorkspaceMemberRequest,
   ApiError,
+  AskAssistantResponse,
   AskBoardRequest,
   AskBoardResponse,
   AskWorkspaceRequest,
   AskWorkspaceResponse,
+  ChatMessage,
   AttachLabelRequest,
   AuthResponse,
   Board,
@@ -276,6 +278,12 @@ export const api = {
       request<AskWorkspaceResponse>(`/api/ai/workspaces/${workspaceId}/ask`, {
         method: 'POST',
         body: JSON.stringify(input),
+      }),
+
+    askAssistant: (question: string, history: ChatMessage[]): Promise<AskAssistantResponse> =>
+      request<AskAssistantResponse>('/api/ai/assistant/ask', {
+        method: 'POST',
+        body: JSON.stringify({ question, history }),
       }),
 
     draftDescription: (workspaceId: string, input: DraftDescriptionRequest): Promise<DraftDescriptionResponse> =>

@@ -1,4 +1,4 @@
-import type { GenerateOptions, LlmClient } from '../types';
+import type { GenerateOptions, LlmClient, LlmMessage } from '../types';
 import { LlmTransportError, postJson } from '../http';
 
 export interface OllamaConfig {
@@ -27,10 +27,14 @@ export class OllamaClient implements LlmClient {
   constructor(private readonly config: OllamaConfig) {}
 
   async generate(prompt: string, options: GenerateOptions = {}): Promise<string> {
-    const messages = [
+    const messages: LlmMessage[] = [
       ...(options.system ? [{ role: 'system' as const, content: options.system }] : []),
       { role: 'user' as const, content: prompt },
     ];
+    return this.chat(messages, options);
+  }
+
+  async chat(messages: LlmMessage[], options: GenerateOptions = {}): Promise<string> {
     const body = await postJson<OllamaChatResponse>(
       `${this.config.url}/api/chat`,
       { model: this.config.chatModel, messages, stream: false, options: { temperature: options.temperature ?? 0.4 } },

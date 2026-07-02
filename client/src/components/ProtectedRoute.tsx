@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { AssistantWidget } from './ai/AssistantWidget';
 import { Spinner } from './ui';
 
 /** Renders nested routes only for an authenticated user; otherwise redirects to /login. */
@@ -19,5 +20,12 @@ export function ProtectedRoute(): JSX.Element {
     return <Navigate to="/login" replace />;
   }
 
-  return <Outlet />;
+  // Mount the global AI assistant once for every authenticated page. It gates
+  // itself on `health().ai.enabled` and renders nothing when AI is disabled.
+  return (
+    <>
+      <Outlet />
+      <AssistantWidget />
+    </>
+  );
 }

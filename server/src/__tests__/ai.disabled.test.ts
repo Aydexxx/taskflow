@@ -88,6 +88,10 @@ describe('AI disabled (no provider configured)', () => {
         .set('Authorization', `Bearer ${owner.token}`)
         .send({ question: 'Who works here?' }),
       request(app)
+        .post('/api/ai/assistant/ask')
+        .set('Authorization', `Bearer ${owner.token}`)
+        .send({ question: 'What can I see?' }),
+      request(app)
         .post(`/api/ai/workspaces/${workspace.id}/draft-description`)
         .set('Authorization', `Bearer ${owner.token}`)
         .send({ title: 'Anything' }),

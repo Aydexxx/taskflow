@@ -68,4 +68,4 @@ export function setAiService(service: AiService): void {
 }
 
 export { AiService } from './service';
-export type { LlmClient, GenerateOptions } from './types';
+export type { LlmClient, GenerateOptions, LlmMessage } from './types';

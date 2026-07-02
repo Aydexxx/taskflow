@@ -142,6 +142,65 @@ export function buildWorkspaceAskPrompt(snapshot: WorkspaceSnapshot, question: s
     .join('\n');
 }
 
+/**
+ * Everything the current user can access, one entry per workspace they belong
+ * to. Assembled from membership-scoped queries, so it is inherently RBAC-safe.
+ */
+export interface GlobalSnapshot {
+  workspaces: WorkspaceSnapshot[];
+}
+
+export const GLOBAL_ASSISTANT_SYSTEM =
+  "You are TaskFlow's helpful, conversational assistant. You answer the user's questions about their work across " +
+  'all of their workspaces. Answer ONLY from the CONTEXT data provided below — it already contains everything (and ' +
+  'only what) this user is allowed to see; the user can only see their own workspaces, so never mention or imply data ' +
+  'about workspaces, boards, cards, or people outside the context. Be concise, factual, and conversational. Never ' +
+  'invent people, boards, cards, dates, or numbers. If the context does not contain the answer, say so plainly ' +
+  "(e.g. \"I don't see that in your workspaces\") rather than guessing.";
+
+/** Render one workspace block for the assistant context. */
+function renderWorkspaceContext(workspace: WorkspaceSnapshot): string {
+  const members =
+    workspace.members.length > 0
+      ? workspace.members.map((member) => `  - ${member.name} (${member.role})`).join('\n')
+      : '  - (no members)';
+  const boards =
+    workspace.boards.length > 0
+      ? workspace.boards
+          .map((board) => `  - ${board.title}: ${board.totalCards} card(s), ${board.overdueCards} overdue`)
+          .join('\n')
+      : '  - (no boards)';
+  const activity =
+    workspace.recentActivity.length > 0
+      ? workspace.recentActivity.map((a) => `  - ${a}`).join('\n')
+      : '  - (none recorded)';
+
+  return [
+    `Workspace: ${workspace.name}`,
+    ' Members:',
+    members,
+    ' Boards:',
+    boards,
+    ' Recent activity (most recent first):',
+    activity,
+  ].join('\n');
+}
+
+/** Build the assistant system message with the RBAC-scoped snapshot embedded as context. */
+export function buildGlobalAssistantSystem(snapshot: GlobalSnapshot): string {
+  const context =
+    snapshot.workspaces.length > 0
+      ? snapshot.workspaces.map(renderWorkspaceContext).join('\n\n')
+      : 'The user is not a member of any workspaces yet.';
+
+  return [
+    GLOBAL_ASSISTANT_SYSTEM,
+    '',
+    'CONTEXT — this is everything the current user can access, and the only data you may use:',
+    context,
+  ].join('\n');
+}
+
 export const SUBTASKS_SYSTEM =
   'You break work items into small, actionable subtasks. ' + STRICT_JSON_RULE;
 

@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import { CARD_PRIORITIES, type CardPriority } from '@taskflow/shared';
 import type {
+  AskAssistantResponse,
   AskBoardResponse,
   AskWorkspaceResponse,
+  ChatMessage,
   DraftDescriptionResponse,
   SuggestMetadataResponse,
   SuggestSubtasksResponse,
@@ -13,6 +15,7 @@ import { requireWorkspaceMember, resolveBoardWorkspaceId, resolveCardContext } f
 import { NotFoundError, ServiceUnavailableError, TooManyRequestsError } from '../../errors/HttpError';
 import { env } from '../../config/env';
 import { getAiService } from './index';
+import type { LlmMessage } from './types';
 import { checkRateLimit } from './rateLimit';
 import { parseStructured } from './json';
 import { aiLogger } from './logger';
@@ -20,6 +23,7 @@ import {
   ASK_SYSTEM,
   buildAskPrompt,
   buildDescriptionPrompt,
+  buildGlobalAssistantSystem,
   buildMetadataPrompt,
   buildSubtasksPrompt,
   buildSummaryPrompt,
@@ -30,6 +34,7 @@ import {
   SUMMARY_SYSTEM,
   WORKSPACE_ASK_SYSTEM,
   type BoardSnapshot,
+  type GlobalSnapshot,
   type WorkspaceSnapshot,
 } from './prompts';
 
@@ -282,6 +287,123 @@ async function buildWorkspaceSnapshot(workspaceId: string): Promise<WorkspaceSna
     const boardTitle = boardTitleById.get(activity.boardId) ?? 'a board';
     const where = ` on board "${boardTitle}"`;
     return `${activity.actor.name} ${verb}${subject ? ` "${subject}"` : ''}${where} (${relativeTime(
+      activity.createdAt,
+      now,
+    )})`;
+  });
+
+  return { name: workspace.name, members, boards, recentActivity };
+}
+
+// --- Global conversational assistant -------------------------------------
+
+/** Compact caps for the global snapshot so multi-workspace context stays affordable. */
+const GLOBAL_WORKSPACE_LIMIT = 10;
+const GLOBAL_MEMBER_LIMIT = 20;
+const GLOBAL_BOARD_LIMIT = 10;
+const GLOBAL_ACTIVITY_LIMIT = 15;
+/** Only the last N conversation turns are replayed to the model to bound tokens. */
+const ASSISTANT_HISTORY_LIMIT = 8;
+
+/**
+ * Answer a free-form question about everything the user can see across all of
+ * their workspaces, with multi-turn memory. Read-only Q&A: nothing is cached or
+ * mutated. RBAC is enforced by `buildGlobalSnapshot`, which only ever reads
+ * workspaces the user belongs to.
+ */
+export async function askAssistant(
+  userId: string,
+  question: string,
+  history: ChatMessage[] = [],
+): Promise<AskAssistantResponse> {
+  enforceRateLimit(userId);
+  requireEnabled();
+
+  const snapshot = await buildGlobalSnapshot(userId);
+
+  // Replay only the most recent turns to keep the request bounded, then append
+  // the new question. The system message carries the RBAC-scoped context.
+  const recentHistory = history.slice(-ASSISTANT_HISTORY_LIMIT);
+  const messages: LlmMessage[] = [
+    { role: 'system', content: buildGlobalAssistantSystem(snapshot) },
+    ...recentHistory.map((turn) => ({ role: turn.role, content: turn.content })),
+    { role: 'user', content: question },
+  ];
+
+  const raw = await getAiService().chat('ask_assistant', messages, { temperature: 0.3 });
+  const answer = raw.trim();
+  if (!answer) aiLogger.warn('assistant.empty', { userId });
+  return { answer };
+}
+
+/**
+ * Build the cross-workspace context for the global assistant.
+ *
+ * RBAC INVARIANT: we select ONLY workspaces where the user is a member
+ * (`members: { some: { userId } }`) and scope every nested query to those
+ * workspace/board ids. There is no code path here that can read a workspace the
+ * user does not belong to, so the resulting snapshot is inherently RBAC-safe.
+ */
+async function buildGlobalSnapshot(userId: string): Promise<GlobalSnapshot> {
+  const workspaces = await prisma.workspace.findMany({
+    where: { members: { some: { userId } } },
+    orderBy: { updatedAt: 'desc' }, // most recently active first, then capped
+    take: GLOBAL_WORKSPACE_LIMIT,
+    select: { id: true, name: true },
+  });
+
+  const now = Date.now();
+  const snapshots = await Promise.all(
+    workspaces.map((workspace) => buildGlobalWorkspaceSnapshot(workspace, now)),
+  );
+  return { workspaces: snapshots };
+}
+
+/** Compact per-workspace snapshot used inside the global assistant context. */
+async function buildGlobalWorkspaceSnapshot(
+  workspace: { id: string; name: string },
+  now: number,
+): Promise<WorkspaceSnapshot> {
+  const isOverdue = (dueDate: Date | null): boolean => dueDate !== null && dueDate.getTime() < now;
+
+  const memberRows = await prisma.workspaceMember.findMany({
+    where: { workspaceId: workspace.id },
+    include: { user: { select: { name: true } } },
+    orderBy: { createdAt: 'asc' },
+    take: GLOBAL_MEMBER_LIMIT,
+  });
+  const members = memberRows.map((member) => ({ name: member.user.name, role: member.role }));
+
+  const boardRows = await prisma.board.findMany({
+    where: { workspaceId: workspace.id },
+    orderBy: { updatedAt: 'desc' },
+    take: GLOBAL_BOARD_LIMIT,
+    include: { columns: { include: { cards: { select: { dueDate: true } } } } },
+  });
+  const boardTitleById = new Map<string, string>();
+  const boards = boardRows.map((board) => {
+    boardTitleById.set(board.id, board.title);
+    let totalCards = 0;
+    let overdueCards = 0;
+    for (const column of board.columns) {
+      totalCards += column.cards.length;
+      overdueCards += column.cards.filter((card) => isOverdue(card.dueDate)).length;
+    }
+    return { title: board.title, totalCards, overdueCards };
+  });
+
+  const activities = await prisma.activity.findMany({
+    where: { boardId: { in: [...boardTitleById.keys()] } },
+    include: { actor: { select: { name: true } } },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: GLOBAL_ACTIVITY_LIMIT,
+  });
+  const recentActivity = activities.map((activity) => {
+    const metadata = JSON.parse(activity.metadata) as { cardTitle?: string; columnTitle?: string };
+    const verb = ACTIVITY_VERB[activity.type] ?? activity.type;
+    const subject = metadata.cardTitle ?? metadata.columnTitle ?? '';
+    const boardTitle = boardTitleById.get(activity.boardId) ?? 'a board';
+    return `${activity.actor.name} ${verb}${subject ? ` "${subject}"` : ''} on board "${boardTitle}" (${relativeTime(
       activity.createdAt,
       now,
     )})`;

@@ -1,5 +1,5 @@
 import type { AIProvider, AIStatus } from '@taskflow/shared';
-import type { GenerateOptions, LlmClient } from './types';
+import type { GenerateOptions, LlmClient, LlmMessage } from './types';
 import { aiLogger } from './logger';
 
 /**
@@ -43,6 +43,29 @@ export class AiService {
       return text;
     } catch (error) {
       aiLogger.error('generate.failed', {
+        feature,
+        provider: this.provider,
+        ms: Date.now() - startedAt,
+        message: error instanceof Error ? error.message : 'unknown',
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Run a multi-turn chat completion, logging latency and outcome (never the
+   * content). Like `generate()`, throws if disabled as a hard backstop — callers
+   * must gate on `isEnabled()` first.
+   */
+  async chat(feature: string, messages: LlmMessage[], options?: GenerateOptions): Promise<string> {
+    if (!this.client) throw new Error('AI is not enabled');
+    const startedAt = Date.now();
+    try {
+      const text = await this.client.chat(messages, options);
+      aiLogger.info('chat.ok', { feature, provider: this.provider, ms: Date.now() - startedAt });
+      return text;
+    } catch (error) {
+      aiLogger.error('chat.failed', {
         feature,
         provider: this.provider,
         ms: Date.now() - startedAt,

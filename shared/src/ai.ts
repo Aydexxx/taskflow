@@ -51,6 +51,26 @@ export interface AskWorkspaceResponse {
   answer: string;
 }
 
+/** One turn of a conversation with the global assistant. `system` turns are server-side only. */
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+/** Request body for `POST /api/ai/assistant/ask` (global, conversational). */
+export interface AskAssistantRequest {
+  /** The user's new free-form question. */
+  question: string;
+  /** Prior conversation turns for multi-turn memory (oldest first). Optional. */
+  history?: ChatMessage[];
+}
+
+/** Response for `POST /api/ai/assistant/ask`. */
+export interface AskAssistantResponse {
+  /** A concise, conversational answer grounded in everything the user can access. */
+  answer: string;
+}
+
 /** Response for `POST /api/ai/cards/:cardId/subtasks`. */
 export interface SuggestSubtasksResponse {
   /** Suggested checklist items; the user accepts/edits these before anything is saved. */
