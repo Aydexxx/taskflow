@@ -2,7 +2,8 @@ import { Suspense } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import type { User } from '@taskflow/shared';
+import type { HealthResponse, User } from '@taskflow/shared';
+import { resetAiStatusCache } from './lib/ai';
 
 // A mutable auth state the mocked `useAuth` reads, so each test can pose as
 // logged-out / logged-in / still-restoring without re-mocking.
@@ -39,8 +40,17 @@ vi.mock('./pages/WorkspacesPage', () => ({
 vi.mock('./lib/socket', () => ({
   socket: { on: vi.fn(), off: vi.fn(), connect: vi.fn(), disconnect: vi.fn(), auth: {} },
 }));
+// The global <AssistantWidget/> mounts inside ProtectedRoute and probes
+// `api.health()` via useAiEnabled(). Resolve to a valid HealthResponse with AI
+// disabled so the widget renders nothing during these routing tests.
 vi.mock('./lib/api', () => ({
-  api: {},
+  api: {
+    health: vi.fn().mockResolvedValue({
+      status: 'ok',
+      time: new Date().toISOString(),
+      ai: { enabled: false, provider: 'none' },
+    } satisfies HealthResponse),
+  },
   ApiRequestError: class ApiRequestError extends Error {},
 }));
 
@@ -72,6 +82,8 @@ beforeEach(() => {
   authState.user = null;
   authState.token = null;
   authState.isLoading = false;
+  // The AI-status probe is cached module-wide; reset it so it doesn't leak between tests.
+  resetAiStatusCache();
 });
 
 describe('public landing route', () => {
